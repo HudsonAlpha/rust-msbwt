@@ -21,6 +21,25 @@ pub trait BWT {
     /// bwt.load_numpy_file(&filename);
     /// ```
     fn load_numpy_file(&mut self, filename: &str) -> std::io::Result<()>;
+
+    /// Returns the total number of occurences of a given symbol
+    /// # Arguments
+    /// * `symbol` - the symbol in integer form
+    /// # Examples
+    /// ```rust
+    /// # use std::io::Cursor;
+    /// # use msbwt::rle_bwt::RleBWT;
+    /// # use msbwt::bwt_converter::convert_to_vec;
+    /// # let seq = "TG$$CAGCCG";
+    /// # let seq = Cursor::new(seq);
+    /// # let vec = convert_to_vec(seq);
+    /// # let mut bwt = RleBWT::new();
+    /// # bwt.load_vector(vec);
+    /// let string_count = bwt.get_total_counts(0);
+    /// assert_eq!(string_count, 2);
+    /// ```
+    fn get_total_counts(&self, symbol: u8) -> u64;
+
     /// Performs a range constraint on a BWT range. This implicitly represents prepending a character `sym` to a k-mer
     /// represented by `input_range` to create a new range representing a (k+1)-mer.
     /// # Arguments

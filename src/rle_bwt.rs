@@ -97,6 +97,12 @@ impl BWT for RleBWT {
         Ok(())
     }
 
+    #[inline]
+    fn get_total_counts(&self, symbol: u8) -> u64 {
+        //self.total_counts[symbol as usize]
+        0
+    }
+
     unsafe fn constrain_range(&self, sym: u8, input_range: &BWTRange) -> BWTRange {
         BWTRange {
             l: 0,
@@ -106,16 +112,67 @@ impl BWT for RleBWT {
 }
 
 impl RleBWT {
+    /// Allocation function for the BWT, look at `load_vector(...)` for initialization.
+    /// # Examples
+    /// ```rust
+    /// use msbwt::rle_bwt::RleBWT;
+    /// let mut bwt: RleBWT = RleBWT::new();
+    /// ```
+    pub fn new() -> Self {
+        Default::default()
+    }
+
     fn standard_init(&mut self) {
         //we will call this function when the bwt is fully loaded into memory
-        //TODO: the actual implementation
+        //first pass does a count so we can pre-allocate the indices correctly
+        //self.calculate_totals();
+
+        //now we can construct the FM-index pieces in the binary storage format for rapid speed
+        //self.construct_fmindex(false);
+
+        /*
+        //now do the fixed initialization
+        let full_range: BWTRange = BWTRange {
+            l: 0,
+            h: self.total_size
+        };
+        unsafe {
+            self.fixed_init[0] = self.constrain_range(1, &full_range);
+            self.fixed_init[1] = self.constrain_range(2, &full_range);
+            self.fixed_init[2] = self.constrain_range(3, &full_range);
+            self.fixed_init[3] = self.constrain_range(5, &full_range);
+        }
+
+        self.populate_cache(false);
+        */
+        info!("Finished BWT initialization.");
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bwt_converter::*;
+    use flate2::{Compression, GzBuilder};
+    //use std::io::Cursor;
+    use tempfile::{Builder, NamedTempFile};
     
+    fn naive_bwt(inputs: &Vec<&str>) -> String {
+        let mut rotations: Vec<String> = vec![];
+        for s in inputs.iter() {
+            let dollar_string = s.to_string()+&"$".to_string();
+            for l in 0..dollar_string.len() {
+                rotations.push(dollar_string[l..].to_string()+&dollar_string[..l]);
+            }
+        }
+        rotations.sort();
+        let mut ret: String = String::with_capacity(rotations.len());
+        for r in rotations.iter() {
+            ret.push(r.as_bytes()[r.len()-1] as char);
+        }
+        ret
+    }
+
     #[test]
     fn test_constrain_range() {
         let rle_bwt: RleBWT = Default::default();
@@ -128,5 +185,45 @@ mod tests {
         };
 
         assert_eq!(new_range, BWTRange{l: 0, h:0});
+    }
+
+    fn write_strings_to_fqgz(data: Vec<&str>) -> NamedTempFile {
+        let file: NamedTempFile = Builder::new().prefix("temp_data_").suffix(".fq.gz").tempfile().unwrap();
+        let mut gz = GzBuilder::new().write(file, Compression::default());
+        let mut i: usize = 0;
+        for s in data {
+            writeln!(gz, "@seq_{}\n{}\n+\n{}", i, s, "F".repeat(s.len())).unwrap();
+            i += 1;
+        }
+
+        //have to keep the file handle or everything blows up
+        gz.finish().unwrap()
+    }
+
+    #[test]
+    fn test_load_rlebwt_from_npy() {
+        //strings - "CCGT\nACG\nN"
+        //build the BWT
+        let data: Vec<&str> = vec!["CCGT", "N", "ACG"];
+        
+        //stream and compress the BWT
+        //let bwt_stream = stream_bwt_from_fastqs(&fastq_filenames).unwrap();
+        let bwt_stream = naive_bwt(&data);
+        let compressed_bwt = convert_to_vec(bwt_stream.as_bytes());
+        
+        //save the output to a temporary numpy file
+        let bwt_file: NamedTempFile = Builder::new().prefix("temp_data_").suffix(".npy").tempfile().unwrap();
+        let filename: String = bwt_file.path().to_str().unwrap().to_string();
+        save_bwt_numpy(&compressed_bwt[..], &filename).unwrap();
+        
+        //load it back in and verify counts
+        let mut bwt = RleBWT::new();
+        bwt.load_numpy_file(&filename).unwrap();
+
+        let expected_totals = vec![3, 1, 3, 2, 1, 1];
+        for i in 0..6 {
+            //make sure the total counts are correct
+            assert_eq!(bwt.get_total_counts(i as u8), expected_totals[i]);
+        }
     }
 }
