@@ -9,18 +9,35 @@ use std::fs;
 use crate::msbwt_core::*;
 
 pub struct RleBWT {
-    bwt: Vec<u8>
+    bwt: Vec<u8>,
+    total_counts: [u64; VC_LEN],
+    start_index: [u64; VC_LEN],
+    end_index: [u64; VC_LEN],
+    total_size: u64
 }
 
 impl Default for RleBWT {
     fn default() -> Self {
         Self {
-            bwt: vec![]
+            bwt: vec![],
+            total_counts: [0; VC_LEN],
+            start_index: [0; VC_LEN],
+            end_index: [0; VC_LEN],
+            total_size: 0
         }
     }
 }
 
 impl BWT for RleBWT {
+    fn load_vector(&mut self, bwt: Vec<u8>) {
+        //i am the captain now
+        self.bwt = bwt;
+        info!("Loading BWT from vector of length {}", self.bwt.len());
+        
+        //we copied it in, standard init now
+        self.standard_init();
+    }
+
     fn load_numpy_file(&mut self, filename: &str) -> std::io::Result<()> {
         //read the numpy header: http://docs.scipy.org/doc/numpy-1.10.1/neps/npy-format.html
         //get the initial file size
@@ -99,8 +116,7 @@ impl BWT for RleBWT {
 
     #[inline]
     fn get_total_counts(&self, symbol: u8) -> u64 {
-        //self.total_counts[symbol as usize]
-        0
+        self.total_counts[symbol as usize]
     }
 
     unsafe fn constrain_range(&self, sym: u8, input_range: &BWTRange) -> BWTRange {
@@ -125,7 +141,7 @@ impl RleBWT {
     fn standard_init(&mut self) {
         //we will call this function when the bwt is fully loaded into memory
         //first pass does a count so we can pre-allocate the indices correctly
-        //self.calculate_totals();
+        self.calculate_totals();
 
         //now we can construct the FM-index pieces in the binary storage format for rapid speed
         //self.construct_fmindex(false);
@@ -146,6 +162,42 @@ impl RleBWT {
         self.populate_cache(false);
         */
         info!("Finished BWT initialization.");
+    }
+
+    /// This calculates the total number of each symbol in the BWT from the compressed representation.
+    /// Running this is part of initialization and is a pre-requisite for FM-index construction.
+    fn calculate_totals(&mut self) {
+        let mut prev_char: u8 = 255;
+        let mut current_char: u8;
+        let mut power_multiple: u64 = 1;
+        let mut current_count: u64;
+
+        //go through each compressed block in the RLE encoded vector to calculate total character counts
+        self.total_counts = [0; VC_LEN];
+        for value in &self.bwt {
+            current_char = value & MASK;
+            if current_char == prev_char {
+                power_multiple *= NUM_POWER as u64;
+            }
+            else {
+                power_multiple = 1;
+            }
+            prev_char = current_char;
+            current_count = (value >> LETTER_BITS) as u64 * power_multiple;
+            self.total_counts[current_char as usize] += current_count;
+        }
+
+        //calculate start/end indices from the total
+        self.start_index = [0; VC_LEN];
+        self.end_index = [0; VC_LEN];
+        let mut sum_offset: u64 = 0;
+        for i in 0..VC_LEN {
+            self.start_index[i] = sum_offset;
+            sum_offset += self.total_counts[i];
+            self.end_index[i] = sum_offset;
+        }
+        self.total_size = self.end_index[VC_LEN-1];
+        info!("Loaded BWT with symbol counts: {:?}", self.total_counts);
     }
 }
 

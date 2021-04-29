@@ -6,18 +6,7 @@ use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::io::{BufWriter, Read};
 
-/// The number of characters in our alphabet
-pub const VC_LEN: usize = 6;      //$ A C G N T
-/// The number of bits for storing the character in a byte
-pub const LETTER_BITS: usize = 3; //defined
-/// The number of bit for storing quantity in a byte
-pub const NUMBER_BITS: usize = 5; //8-letterBits
-/// Multiplier for multi-byte runs
-pub const NUM_POWER: usize = 32;  //2**numberBits
-/// Contains the character mask
-pub const MASK: u8 = 0x07;        //255 >> numberBits
-/// Contains the right-shifted number mask
-pub const COUNT_MASK: u8 = 0x1F;
+use crate::msbwt_core::*;
 
 //TODO: convert_to_vec currently pulls the whole compressed BWT into memory, which I'm largely okay with
 // if we ever decide to change it, we could try to build an iterator following this guide: 
@@ -28,7 +17,7 @@ pub const COUNT_MASK: u8 = 0x1F;
 /// * `bwt` - the stream of characters to be compressed, allowed characters are "$ACGNT"; newline characters ('\n') are ignored
 /// # Examples
 /// ```rust
-/// use fmlrc::bwt_converter::convert_to_vec;
+/// use msbwt::bwt_converter::convert_to_vec;
 /// use std::io::Cursor;
 /// let seq = Cursor::new("ACGNT$");
 /// let vec = convert_to_vec(seq);
