@@ -397,6 +397,7 @@ impl RleBWT {
 mod tests {
     use super::*;
     use crate::bwt_converter::*;
+    use crate::string_util;
     use flate2::{Compression, GzBuilder};
     //use std::io::Cursor;
     use tempfile::{Builder, NamedTempFile};
@@ -565,6 +566,7 @@ mod tests {
         //let bwt_stream = stream_bwt_from_fastqs(&fastq_filenames).unwrap();
         let bwt_stream = naive_bwt(&data);
         assert_eq!(bwt_stream, "GTN$$ACCC$G");
+        let bwt_int_form = string_util::convert_stoi(&bwt_stream);
         let compressed_bwt = convert_to_vec(bwt_stream.as_bytes());
         //[G, T, N, 2$, A, 3C, $, G]
         assert_eq!(compressed_bwt.len(), 8);
@@ -588,6 +590,43 @@ mod tests {
             }
 
             //now lets verify that we get all ascending symbols
+            for sym in 0..VC_LEN {
+                let mut sym_count = 0;
+                for ind in 0..(bwt_stream.len()+1) {
+                    //test from 0 to the current index
+                    let initial_range = BWTRange {
+                        l: 0,
+                        h: ind as u64
+                    };
+
+                    let new_range = unsafe {
+                        bwt.constrain_range(sym as u8, &initial_range)
+                    };
+                    assert_eq!(new_range, BWTRange {
+                        l: bwt.start_index[sym],
+                        h: bwt.start_index[sym]+sym_count
+                    });
+
+                    //test from the current index to the high point
+                    let initial_range = BWTRange {
+                        l: ind as u64,
+                        h: bwt_stream.len() as u64
+                    };
+
+                    let new_range = unsafe {
+                        bwt.constrain_range(sym as u8, &initial_range)
+                    };
+                    assert_eq!(new_range, BWTRange {
+                        l: bwt.start_index[sym]+sym_count,
+                        h: bwt.end_index[sym]
+                    });
+
+                    //check if we need to adjust our expected values at all
+                    if ind < bwt_stream.len() && bwt_int_form[ind] == sym as u8 {
+                        sym_count += 1;
+                    }
+                }
+            }
         }
     }
 }
