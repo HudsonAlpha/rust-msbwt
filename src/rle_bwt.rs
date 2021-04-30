@@ -32,8 +32,8 @@ impl Default for RleBWT {
             fm_index: Default::default(),
             ref_index: Default::default(),
             total_size: 0,
-            bin_power: bin_power,
-            bin_size: bin_size
+            bin_power,
+            bin_size
         }
     }
 }
@@ -226,11 +226,13 @@ impl RleBWT {
         RleBWT::with_bin_power(8)
     }
 
-    /// Allocation function for the BWT, look at `load_vector(...)` for initialization.
+    /// Allocation function for the BWT that allows specification of the sample size as a power of 2, look at `load_vector(...)` for initialization.
+    /// # Arguments
+    /// * `bin_power` - the FM-index sampling rate is set to `2^bin_power`; e.g. if `bin_power == 8`, then the FM-index is sampled approximately once for every 256 bases; increasing this reduces memory usage at the cost of run-time for each lookup
     /// # Examples
     /// ```rust
     /// use msbwt::rle_bwt::RleBWT;
-    /// let mut bwt: RleBWT = RleBWT::new();
+    /// let mut bwt: RleBWT = RleBWT::with_bin_power(8);
     /// ```
     pub fn with_bin_power(bin_power: u8) -> Self {
         let bin_size: u64 = 0x1 << bin_power;
@@ -242,8 +244,8 @@ impl RleBWT {
             fm_index: Default::default(),
             ref_index: Default::default(),
             total_size: 0,
-            bin_power: bin_power,
-            bin_size: bin_size
+            bin_power,
+            bin_size
         }
     }
 
@@ -346,8 +348,8 @@ impl RleBWT {
                 //while bwt_index+total_char_count >= bin_end {
                 while bwt_index+total_char_count > bin_end {
                     self.ref_index[bin_id] = prev_start as u64;
-                    for y in 0..VC_LEN {
-                        self.fm_index[y][bin_id] = current_index[y];
+                    for (y, index_val) in current_index.iter().enumerate().take(VC_LEN) {
+                        self.fm_index[y][bin_id] = *index_val;
                     }
                     bin_end += self.bin_size as usize;
                     bin_id += 1;
@@ -368,8 +370,8 @@ impl RleBWT {
         //while bwt_index+total_char_count >= bin_end {
         while bwt_index+total_char_count > bin_end {
             self.ref_index[bin_id] = prev_start as u64;
-            for y in 0..VC_LEN {
-                self.fm_index[y][bin_id] = current_index[y];
+            for (y, index_val) in current_index.iter().enumerate().take(VC_LEN) {
+                self.fm_index[y][bin_id] = *index_val;
             }
             bin_end += self.bin_size as usize;
             bin_id += 1;
@@ -378,8 +380,8 @@ impl RleBWT {
         //set the last entry
         current_index[prev_char as usize] += total_char_count as u64;//forces countSoFar to hold the very end FM-index entry
         self.ref_index[index_length-1] = self.bwt.len() as u64; //need to point to the index at the end
-        for y in 0..VC_LEN {
-            self.fm_index[y][index_length-1] = current_index[y];
+        for (y, index_val) in current_index.iter().enumerate().take(VC_LEN) {
+            self.fm_index[y][index_length-1] = *index_val;
         }
         /*
         //calculate the total offset_sum

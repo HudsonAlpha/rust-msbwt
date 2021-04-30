@@ -72,10 +72,11 @@ pub trait BWT {
     fn get_total_counts(&self, symbol: u8) -> u64;
 
     /// Performs a range constraint on a BWT range. This implicitly represents prepending a character `sym` to a k-mer
-    /// represented by `input_range` to create a new range representing a (k+1)-mer.  This function is unsafe because
-    /// there are no guarantees that the symbol or bounds will be checked by the implementing structure.
+    /// represented by `input_range` to create a new range representing a (k+1)-mer.
     /// # Arguments
     /// * `sym` - the symbol to pre-pend in integer form
     /// * `input_range` - the range to pre-pend to
+    /// # Safety
+    /// This function is unsafe because there are no guarantees that the symbol or bounds will be checked by the implementing structure.
     unsafe fn constrain_range(&self, sym: u8, input_range: &BWTRange) -> BWTRange;
 }
