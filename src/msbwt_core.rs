@@ -29,14 +29,12 @@ pub trait BWT {
     /// * `bwt` - the run-length encoded BWT stored in a Vec<u8> 
     /// # Examples
     /// ```rust
-    /// use std::io::Cursor;
     /// use msbwt::msbwt_core::BWT;
     /// use msbwt::rle_bwt::RleBWT;
     /// use msbwt::bwt_converter::convert_to_vec;
     /// //strings "ACGT" and "CCGG"
     /// let seq = "TG$$CAGCCG";
-    /// let seq = Cursor::new(seq);
-    /// let vec = convert_to_vec(seq);
+    /// let vec = convert_to_vec(seq.as_bytes());
     /// let mut bwt = RleBWT::new();
     /// bwt.load_vector(vec);
     /// ```
@@ -74,7 +72,8 @@ pub trait BWT {
     fn get_total_counts(&self, symbol: u8) -> u64;
 
     /// Performs a range constraint on a BWT range. This implicitly represents prepending a character `sym` to a k-mer
-    /// represented by `input_range` to create a new range representing a (k+1)-mer.
+    /// represented by `input_range` to create a new range representing a (k+1)-mer.  This function is unsafe because
+    /// there are no guarantees that the symbol or bounds will be checked by the implementing structure.
     /// # Arguments
     /// * `sym` - the symbol to pre-pend in integer form
     /// * `input_range` - the range to pre-pend to
