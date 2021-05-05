@@ -399,39 +399,11 @@ impl RleBWT {
 mod tests {
     use super::*;
     use crate::bwt_converter::*;
+    use crate::bwt_util::naive_bwt;
     use crate::string_util;
     use flate2::{Compression, GzBuilder};
     //use std::io::Cursor;
     use tempfile::{Builder, NamedTempFile};
-    
-    fn naive_bwt(inputs: &Vec<&str>) -> String {
-        let mut rotations: Vec<String> = vec![];
-        for s in inputs.iter() {
-            let dollar_string = s.to_string()+&"$".to_string();
-            for l in 0..dollar_string.len() {
-                rotations.push(dollar_string[l..].to_string()+&dollar_string[..l]);
-            }
-        }
-        rotations.sort();
-        let mut ret: String = String::with_capacity(rotations.len());
-        for r in rotations.iter() {
-            ret.push(r.as_bytes()[r.len()-1] as char);
-        }
-        ret
-    }
-
-    fn write_strings_to_fqgz(data: Vec<&str>) -> NamedTempFile {
-        let file: NamedTempFile = Builder::new().prefix("temp_data_").suffix(".fq.gz").tempfile().unwrap();
-        let mut gz = GzBuilder::new().write(file, Compression::default());
-        let mut i: usize = 0;
-        for s in data {
-            writeln!(gz, "@seq_{}\n{}\n+\n{}", i, s, "F".repeat(s.len())).unwrap();
-            i += 1;
-        }
-
-        //have to keep the file handle or everything blows up
-        gz.finish().unwrap()
-    }
 
     #[test]
     fn test_load_rlebwt_from_npy() {

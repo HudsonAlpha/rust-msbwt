@@ -113,26 +113,9 @@ pub fn save_bwt_numpy(bwt: impl Read, filename: &str) -> Result<(), Box<dyn std:
 #[cfg(test)]
 mod tests {
     use super::*;
-    //use crate::ropebwt2_util::create_bwt_from_strings;
+    use crate::bwt_util::naive_bwt;
     use std::io::Cursor;
     use tempfile::{Builder, NamedTempFile};
-
-    //TODO: consolidate naive BWT into somewhere global
-    fn naive_bwt(inputs: &Vec<&str>) -> String {
-        let mut rotations: Vec<String> = vec![];
-        for s in inputs.iter() {
-            let dollar_string = s.to_string()+&"$".to_string();
-            for l in 0..dollar_string.len() {
-                rotations.push(dollar_string[l..].to_string()+&dollar_string[..l]);
-            }
-        }
-        rotations.sort();
-        let mut ret: String = String::with_capacity(rotations.len());
-        for r in rotations.iter() {
-            ret.push(r.as_bytes()[r.len()-1] as char);
-        }
-        ret
-    }
 
     #[test]
     fn test_convert_to_vec() {
