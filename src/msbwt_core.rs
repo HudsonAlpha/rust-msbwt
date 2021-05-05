@@ -93,6 +93,25 @@ pub trait BWT {
     /// This function is unsafe because there are no guarantees that the symbol or bounds will be checked by the implementing structure.
     unsafe fn constrain_range(&self, sym: u8, input_range: &BWTRange) -> BWTRange;
 
+    /// Returns the total number of occurrences of a given k-mer in the BWT.
+    /// # Arguments
+    /// * `kmer` - the integer-encoded kmer sequence to count
+    /// # Examples
+    /// ```rust
+    /// # use msbwt::msbwt_core::BWT;
+    /// # use msbwt::rle_bwt::RleBWT;
+    /// # use msbwt::bwt_converter::convert_to_vec;
+    /// # let seq = "TG$$CAGCCG";
+    /// # let vec = convert_to_vec(seq.as_bytes());
+    /// # let mut bwt = RleBWT::new();
+    /// # bwt.load_vector(vec);
+    /// //strings "ACGT" and "CCGG"
+    /// let kmer_count = bwt.count_kmer(&vec![1, 2, 3, 5]); //ACGT
+    /// assert_eq!(kmer_count, 1);
+    /// let kmer_count = bwt.count_kmer(&vec![2, 3]); //CG
+    /// assert_eq!(kmer_count, 2);
+    /// ```
+    #[inline]
     fn count_kmer(&self, kmer: &[u8]) -> u64 {
         //init to everything
         assert!(kmer.iter().all(|&v| v < VC_LEN as u8));
