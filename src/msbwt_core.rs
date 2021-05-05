@@ -57,19 +57,32 @@ pub trait BWT {
     /// * `symbol` - the symbol in integer form
     /// # Examples
     /// ```rust
-    /// # use std::io::Cursor;
     /// # use msbwt::msbwt_core::BWT;
     /// # use msbwt::rle_bwt::RleBWT;
     /// # use msbwt::bwt_converter::convert_to_vec;
     /// # let seq = "TG$$CAGCCG";
-    /// # let seq = Cursor::new(seq);
-    /// # let vec = convert_to_vec(seq);
+    /// # let vec = convert_to_vec(seq.as_bytes());
     /// # let mut bwt = RleBWT::new();
     /// # bwt.load_vector(vec);
-    /// let string_count = bwt.get_total_counts(0);
+    /// let string_count = bwt.get_symbol_count(0);
     /// assert_eq!(string_count, 2);
     /// ```
-    fn get_total_counts(&self, symbol: u8) -> u64;
+    fn get_symbol_count(&self, symbol: u8) -> u64;
+
+    /// This will return the total number of symbols contained by the BWT
+    /// # Examples
+    /// ```rust
+    /// # use msbwt::msbwt_core::BWT;
+    /// # use msbwt::rle_bwt::RleBWT;
+    /// # use msbwt::bwt_converter::convert_to_vec;
+    /// # let seq = "TG$$CAGCCG";
+    /// # let vec = convert_to_vec(seq.as_bytes());
+    /// # let mut bwt = RleBWT::new();
+    /// # bwt.load_vector(vec);
+    /// let total_size = bwt.get_total_size();
+    /// assert_eq!(total_size, 10);
+    /// ```
+    fn get_total_size(&self) -> u64;
 
     /// Performs a range constraint on a BWT range. This implicitly represents prepending a character `sym` to a k-mer
     /// represented by `input_range` to create a new range representing a (k+1)-mer.
@@ -79,4 +92,41 @@ pub trait BWT {
     /// # Safety
     /// This function is unsafe because there are no guarantees that the symbol or bounds will be checked by the implementing structure.
     unsafe fn constrain_range(&self, sym: u8, input_range: &BWTRange) -> BWTRange;
+
+    fn count_kmer(&self, kmer: &[u8]) -> u64 {
+        //init to everything
+        assert!(kmer.iter().all(|&v| v < VC_LEN as u8));
+        let mut ret: BWTRange = BWTRange {
+            l: 0,
+            h: self.get_total_size()
+        };
+        
+        /*
+        //check for cache entry
+        let cut_kmer: &[u8];
+        if kmer.len() >= self.cache_k {
+            ret = self.kmer_cache[self.get_cache_index(&kmer[kmer.len()-self.cache_k..])];
+            cut_kmer = &kmer[..kmer.len()-self.cache_k];
+        } else {
+            cut_kmer = kmer;
+            ret = BWTRange {
+                l: 0,
+                h: self.total_size
+            };
+        }*/
+        
+        //go through what remains in reverse
+        //for c in cut_kmer.iter().rev() {
+        for c in kmer.iter().rev() {
+            if ret.h == ret.l {
+                return 0;
+            }
+            unsafe {
+                ret = self.constrain_range(*c, &ret);
+            }
+        }
+
+        //return the delta
+        ret.h-ret.l
+    }
 }

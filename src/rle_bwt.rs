@@ -125,8 +125,13 @@ impl BWT for RleBWT {
     }
 
     #[inline]
-    fn get_total_counts(&self, symbol: u8) -> u64 {
+    fn get_symbol_count(&self, symbol: u8) -> u64 {
         self.total_counts[symbol as usize]
+    }
+
+    #[inline]
+    fn get_total_size(&self) -> u64 {
+        self.total_size
     }
 
     unsafe fn constrain_range(&self, sym: u8, input_range: &BWTRange) -> BWTRange {
@@ -401,8 +406,6 @@ mod tests {
     use crate::bwt_converter::*;
     use crate::bwt_util::naive_bwt;
     use crate::string_util;
-    use flate2::{Compression, GzBuilder};
-    //use std::io::Cursor;
     use tempfile::{Builder, NamedTempFile};
 
     #[test]
@@ -428,7 +431,7 @@ mod tests {
         let expected_totals = vec![3, 1, 3, 2, 1, 1];
         for i in 0..6 {
             //make sure the total counts are correct
-            assert_eq!(bwt.get_total_counts(i as u8), expected_totals[i]);
+            assert_eq!(bwt.get_symbol_count(i as u8), expected_totals[i]);
         }
     }
 
@@ -454,7 +457,7 @@ mod tests {
             let expected_totals = vec![3, 1, 3, 2, 1, 1];
             for i in 0..6 {
                 //make sure the total counts are correct
-                assert_eq!(bwt.get_total_counts(i as u8), expected_totals[i]);
+                assert_eq!(bwt.get_symbol_count(i as u8), expected_totals[i]);
             }
             
             //make sure the chunk sizes are as expected
@@ -481,17 +484,17 @@ mod tests {
                     assert_eq!(bwt.fm_index[i], expected_fm_index[i]);
                 }
             } 
-            /*else if bin_power == 2 {
+            else if bin_power == 2 {
                 //every 4 bases should get an entry
                 let expected_ref: Vec<u64> = vec![0, 3, 5, 8];
                 assert_eq!(bwt.ref_index, expected_ref);
                 let expected_fm_index: [Vec<u64>; VC_LEN] = [
                     vec![0, 0, 2, 3],
-                    vec![3, 3, 4, 4],
-                    vec![4, 4, 4, 7],
-                    vec![7, 8, 8, 9],
-                    vec![9, 10, 10, 10],
-                    vec![10, 11, 11, 11]
+                    vec![0, 0, 1, 1],
+                    vec![0, 0, 0, 3],
+                    vec![0, 1, 1, 2],
+                    vec![0, 1, 1, 1],
+                    vec![0, 1, 1, 1]
                 ];
                 for i in 0..VC_LEN {
                     assert_eq!(bwt.fm_index[i], expected_fm_index[i]);
@@ -502,11 +505,11 @@ mod tests {
                 assert_eq!(bwt.ref_index, expected_ref);
                 let expected_fm_index: [Vec<u64>; VC_LEN] = [
                     vec![0, 2, 3],
-                    vec![3, 4, 4],
-                    vec![4, 4, 7],
-                    vec![7, 8, 9],
-                    vec![9, 10, 10],
-                    vec![10, 11, 11]
+                    vec![0, 1, 1],
+                    vec![0, 0, 3],
+                    vec![0, 1, 2],
+                    vec![0, 1, 1],
+                    vec![0, 1, 1]
                 ];
                 for i in 0..VC_LEN {
                     assert_eq!(bwt.fm_index[i], expected_fm_index[i]);
@@ -517,16 +520,16 @@ mod tests {
                 assert_eq!(bwt.ref_index, expected_ref);
                 let expected_fm_index: [Vec<u64>; VC_LEN] = [
                     vec![0, 3],
-                    vec![3, 4],
-                    vec![4, 7],
-                    vec![7, 9],
-                    vec![9, 10],
-                    vec![10, 11]
+                    vec![0, 1],
+                    vec![0, 3],
+                    vec![0, 2],
+                    vec![0, 1],
+                    vec![0, 1]
                 ];
                 for i in 0..VC_LEN {
                     assert_eq!(bwt.fm_index[i], expected_fm_index[i]);
                 }
-            }*/
+            }
         }
     }
 
@@ -601,6 +604,41 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn test_count_kmer() {
+        //strings - "CCGT\nACG\nN"
+        //build the BWT
+        let data: Vec<&str> = vec!["CCGTACGTA", "GGTACAGTA", "ACGACGACG"];
+        
+        //stream and compress the BWT
+        //let bwt_stream = stream_bwt_from_fastqs(&fastq_filenames).unwrap();
+        let bwt_stream = naive_bwt(&data);
+        let compressed_bwt = convert_to_vec(bwt_stream.as_bytes());
+        
+        //load it back in and verify counts
+        for bin_power in 1..5 {
+            let mut bwt = RleBWT::with_bin_power(bin_power);
+            bwt.load_vector(compressed_bwt.clone());
+
+            //simple sanity checks, make sure our single-character symbols matches the total count
+            for c in 0..VC_LEN as u8 {
+                let test_seq: Vec<u8> = vec![c];
+                assert_eq!(bwt.get_symbol_count(c), bwt.count_kmer(&test_seq));
+            }
+            
+            //check that each string shows up once
+            for seq in data.iter() {
+                let test_seq = string_util::convert_stoi(seq);
+                assert_eq!(bwt.count_kmer(&test_seq), 1);
+            }
+
+            //now lets check some semi-arbitrary substrings
+            assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"ACG")), 4);
+            assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"CC")), 1);
+            assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"TAC")), 2);
         }
     }
 }

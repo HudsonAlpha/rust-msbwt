@@ -10,7 +10,7 @@
 /// let bwt_stream = naive_bwt(&data);
 /// assert_eq!(bwt_stream, "GTN$$ACCC$G");
 /// ```
-pub fn naive_bwt(inputs: &Vec<&str>) -> String {
+pub fn naive_bwt(inputs: &[&str]) -> String {
     let mut rotations: Vec<String> = vec![];
     for s in inputs.iter() {
         let dollar_string = s.to_string()+&"$".to_string();
