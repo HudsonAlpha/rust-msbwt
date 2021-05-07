@@ -1,5 +1,5 @@
 [package]
-name = "msbwt"
+name = "msbwt2"
 version = "0.1.0"
 authors = ["holtjma <jholt@hudsonalpha.org>"]
 edition = "2018"
@@ -7,6 +7,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+clap = "2.33.1"
+env_logger = "0.7.1"
+exitcode = "1.1.2"
 flate2 = "1.0.14"
 log = "0.4.8"
 serde_json = "1.0.58"
