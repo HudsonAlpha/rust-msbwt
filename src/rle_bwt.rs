@@ -143,9 +143,11 @@ impl BWT for RleBWT {
             bwt_index += self.fm_index[x][bin_id];
         }
         
-        let mut ret: BWTRange = Default::default();
-        ret.l = self.start_index[sym as usize]+self.fm_index[sym as usize][bin_id];
-        
+        let mut ret: BWTRange = BWTRange {
+            l: self.start_index[sym as usize]+self.fm_index[sym as usize][bin_id],
+            ..Default::default()
+        };
+
         let mut prev_char: u8 = 255;
         let mut current_char: u8;
         let mut prev_count: u64 = 0;
