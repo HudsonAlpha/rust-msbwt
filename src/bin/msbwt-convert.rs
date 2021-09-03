@@ -8,7 +8,7 @@ use log::{info, error};
 use std::fs::File;
 use std::io;
 
-use msbwt::bwt_converter::{convert_to_vec, save_bwt_numpy};
+use msbwt2::bwt_converter::{convert_to_vec, save_bwt_numpy};
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 

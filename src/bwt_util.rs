@@ -5,7 +5,7 @@
 /// * `inputs` - the collection of strings to get converted into a MSBWT
 /// # Examples
 /// ```rust
-/// use msbwt::bwt_util::naive_bwt;
+/// use msbwt2::bwt_util::naive_bwt;
 /// let data: Vec<&str> = vec!["CCGT", "N", "ACG"];
 /// let bwt_stream = naive_bwt(&data);
 /// assert_eq!(bwt_stream, "GTN$$ACCC$G");

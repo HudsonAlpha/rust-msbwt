@@ -36,7 +36,7 @@ const fn build_stoi() -> [u8; 256] {
 /// * `seq` - the sequence to reverse complement in integer format
 /// # Examples
 /// ```rust
-/// use msbwt::string_util::reverse_complement_i;
+/// use msbwt2::string_util::reverse_complement_i;
 /// let seq: Vec<u8> = vec![0, 1, 2, 3, 4, 5]; //"$ACGNT"
 /// let rev_comp = reverse_complement_i(&seq);
 /// assert_eq!(rev_comp, vec![1, 4, 2, 3, 5, 0]); //"ANCGT$"
@@ -54,7 +54,7 @@ pub fn reverse_complement_i(seq: &[u8]) -> Vec<u8> {
 /// * `seq` - the sequence to convert to integer
 /// # Examples
 /// ```rust
-/// use msbwt::string_util::convert_stoi;
+/// use msbwt2::string_util::convert_stoi;
 /// let test = "ACGTN$";
 /// let converted = convert_stoi(&test);
 /// assert_eq!(converted, vec![1, 2, 3, 5, 4, 0]);
@@ -71,7 +71,7 @@ pub fn convert_stoi(seq: &str) -> Vec<u8> {
 /// * `iseq` - the integer sequence to convert to String
 /// # Examples
 /// ```rust
-/// use msbwt::string_util::convert_itos;
+/// use msbwt2::string_util::convert_itos;
 /// let test: Vec<u8> = vec![0, 1, 2, 3, 4, 5];
 /// let converted = convert_itos(&test);
 /// assert_eq!(&converted, "$ACGNT");

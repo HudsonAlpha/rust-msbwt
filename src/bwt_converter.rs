@@ -17,7 +17,7 @@ use crate::msbwt_core::*;
 /// * `bwt` - the stream of characters to be compressed, allowed characters are "$ACGNT"; newline characters ('\n') are ignored
 /// # Examples
 /// ```rust
-/// use msbwt::bwt_converter::convert_to_vec;
+/// use msbwt2::bwt_converter::convert_to_vec;
 /// use std::io::Cursor;
 /// let seq = Cursor::new("ACGNT$");
 /// let vec = convert_to_vec(seq);

@@ -224,7 +224,7 @@ impl RleBWT {
     /// Allocation function for the BWT, look at `load_vector(...)` for initialization.
     /// # Examples
     /// ```rust
-    /// use msbwt::rle_bwt::RleBWT;
+    /// use msbwt2::rle_bwt::RleBWT;
     /// let mut bwt: RleBWT = RleBWT::new();
     /// ```
     pub fn new() -> Self {
@@ -236,7 +236,7 @@ impl RleBWT {
     /// * `bin_power` - the FM-index sampling rate is set to `2^bin_power`; e.g. if `bin_power == 8`, then the FM-index is sampled approximately once for every 256 bases; increasing this reduces memory usage at the cost of run-time for each lookup
     /// # Examples
     /// ```rust
-    /// use msbwt::rle_bwt::RleBWT;
+    /// use msbwt2::rle_bwt::RleBWT;
     /// let mut bwt: RleBWT = RleBWT::with_bin_power(8);
     /// ```
     pub fn with_bin_power(bin_power: u8) -> Self {
