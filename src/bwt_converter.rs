@@ -19,7 +19,7 @@ use crate::msbwt_core::*;
 /// ```rust
 /// use msbwt2::bwt_converter::convert_to_vec;
 /// use std::io::Cursor;
-/// let seq = Cursor::new("ACGNT$");
+/// let seq = Cursor::new("AAAACCCGGGGNTTTTT$$");
 /// let vec = convert_to_vec(seq);
 /// assert_eq!(vec.len(), 6);
 /// ```
