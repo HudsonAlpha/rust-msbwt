@@ -110,6 +110,10 @@ pub trait BWT {
     /// assert_eq!(kmer_count, 1);
     /// let kmer_count = bwt.count_kmer(&vec![2, 3]); //CG
     /// assert_eq!(kmer_count, 2);
+    /// //alternative approach directly from a string
+    /// use msbwt2::string_util::convert_stoi;
+    /// let kmer_count = bwt.count_kmer(&convert_stoi(&"CG"));
+    /// assert_eq!(kmer_count, 2);
     /// ```
     #[inline]
     fn count_kmer(&self, kmer: &[u8]) -> u64 {
@@ -121,6 +125,7 @@ pub trait BWT {
         };
         
         /*
+        //TODO: give RLE and other a cache and specialized impl of count_kmer
         //check for cache entry
         let cut_kmer: &[u8];
         if kmer.len() >= self.cache_k {
