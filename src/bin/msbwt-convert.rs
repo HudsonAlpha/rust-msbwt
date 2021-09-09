@@ -14,7 +14,7 @@ const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
 fn main() {
     //initialize logging for our benefit later
-    env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     //this is the CLI block, params that get populated appear before
     let mut in_fn: String = "stdin".to_string();
