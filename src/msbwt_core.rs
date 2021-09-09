@@ -23,6 +23,8 @@ pub struct BWTRange {
     pub h: u64
 }
 
+/// This is the primary functionality that will be shared between BWT types.
+/// The main functions are loading data and querying for k-mers.
 pub trait BWT {
     /// Initializes the BWT from a compressed BWT vector.
     /// # Arguments
@@ -44,11 +46,14 @@ pub trait BWT {
     /// # Arguments
     /// * `filename` - the name of the file to load into memory
     /// # Examples
-    /// ```ignore
+    /// ```rust
+    /// use msbwt2::msbwt_core::BWT;
     /// use msbwt2::rle_bwt::RleBWT;
+    /// use msbwt2::string_util;
     /// let mut bwt = RleBWT::new();
-    /// let filename: String = "/path/to/my/file/comp_msbwt.npy".to_string();
+    /// let filename: String = "test_data/two_string.npy".to_string();
     /// bwt.load_numpy_file(&filename);
+    /// assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"ACGT")), 1);
     /// ```
     fn load_numpy_file(&mut self, filename: &str) -> std::io::Result<()>;
 
@@ -101,6 +106,7 @@ pub trait BWT {
     /// # use msbwt2::msbwt_core::BWT;
     /// # use msbwt2::rle_bwt::RleBWT;
     /// # use msbwt2::bwt_converter::convert_to_vec;
+    /// # use msbwt2::string_util;
     /// # let seq = "TG$$CAGCCG";
     /// # let vec = convert_to_vec(seq.as_bytes());
     /// # let mut bwt = RleBWT::new();

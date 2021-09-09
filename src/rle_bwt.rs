@@ -8,6 +8,9 @@ use std::fs;
 
 use crate::msbwt_core::*;
 
+/// This is the run-length encoded BWT format.
+/// It will load the data directly into memory (a Vec) and build out various lookup indices based on the data.
+/// This approach is relatively space efficient, but queries may be slower than other approaches.
 pub struct RleBWT {
     bwt: Vec<u8>,
     total_counts: [u64; VC_LEN],
