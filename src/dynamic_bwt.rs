@@ -17,10 +17,10 @@ const COST_FACTOR: f64 = 0.000001;
 
 pub struct DynamicBWT {
     tree_bwt: RLEBPlusTree,
-    total_counts: [u64; VC_LEN],
+    symbol_counts: [u64; VC_LEN],
     start_index: [u64; VC_LEN],
     string_count: u64,
-    symbol_count: u64,
+    total_count: u64,
     sort_query_len: f64,
     short_circuits: [usize; 3],
 }
@@ -29,9 +29,9 @@ impl Default for DynamicBWT {
     fn default() -> Self {
         DynamicBWT {
             string_count: 0,
-            symbol_count: 0,
+            total_count: 0,
             tree_bwt: Default::default(),
-            total_counts: [0; VC_LEN],
+            symbol_counts: [0; VC_LEN],
             start_index: [0; VC_LEN],
             sort_query_len: INITIAL_QUERY as f64,
             short_circuits: [0; 3]
@@ -41,12 +41,25 @@ impl Default for DynamicBWT {
 
 impl BWT for DynamicBWT {
     /// Initializes the BWT from a compressed BWT vector.
+    /// # Arguments
+    /// * `bwt` - the run-length encoded BWT stored in a Vec<u8> 
+    /// # Examples
+    /// ```rust
+    /// use msbwt2::msbwt_core::BWT;
+    /// use msbwt2::dynamic_bwt::DynamicBWT;
+    /// use msbwt2::bwt_converter::convert_to_vec;
+    /// //strings "ACGT" and "CCGG"
+    /// let seq = "TG$$CAGCCG";
+    /// let vec = convert_to_vec(seq.as_bytes());
+    /// let mut bwt = DynamicBWT::new();
+    /// bwt.load_vector(vec);
+    /// ```
     fn load_vector(&mut self, bwt: Vec<u8>) {
         info!("Initializing BWT with {:?} compressed values...", bwt.len());
 
         //reset all of these 
         self.tree_bwt = Default::default();
-        self.total_counts = [0; VC_LEN];
+        self.symbol_counts = [0; VC_LEN];
         self.sort_query_len = INITIAL_QUERY as f64;
         self.short_circuits = [0; 3];
 
@@ -75,20 +88,32 @@ impl BWT for DynamicBWT {
             }
 
             //add this to the total counts
-            self.total_counts[current_char as usize] += current_count;
+            self.symbol_counts[current_char as usize] += current_count;
         }
 
-        self.string_count = self.total_counts[0];
-        self.symbol_count = self.total_counts.iter().sum();
-        self.start_index = self.total_counts.iter().scan(0, |sum, &count| {
+        self.string_count = self.symbol_counts[0];
+        self.total_count = self.symbol_counts.iter().sum();
+        self.start_index = self.symbol_counts.iter().scan(0, |sum, &count| {
             *sum += count;
             Some(*sum - count)
         }).collect::<Vec<u64>>().try_into().unwrap();
-        info!("Loaded BWT with symbol counts: {:?}", self.total_counts);
+        info!("Loaded BWT with symbol counts: {:?}", self.symbol_counts);
         info!("Finished BWT initialization.")
     }
 
     /// Initializes the BWT from the numpy file format for compressed BWTs
+    /// # Arguments
+    /// * `filename` - the name of the file to load into memory
+    /// # Examples
+    /// ```rust
+    /// use msbwt2::msbwt_core::BWT;
+    /// use msbwt2::dynamic_bwt::DynamicBWT;
+    /// use msbwt2::string_util;
+    /// let mut bwt = DynamicBWT::new();
+    /// let filename: String = "test_data/two_string.npy".to_string();
+    /// bwt.load_numpy_file(&filename);
+    /// assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"ACGT")), 1);
+    /// ```
     fn load_numpy_file(&mut self, filename: &str) -> std::io::Result<()> {
         //read the numpy header: http://docs.scipy.org/doc/numpy-1.10.1/neps/npy-format.html
         //get the initial file size
@@ -166,17 +191,48 @@ impl BWT for DynamicBWT {
     }
 
     /// Returns the total number of occurences of a given symbol
+    /// # Arguments
+    /// * `symbol` - the symbol in integer form
+    /// # Examples
+    /// ```rust
+    /// # use msbwt2::msbwt_core::BWT;
+    /// # use msbwt2::dynamic_bwt::DynamicBWT;
+    /// # use msbwt2::bwt_converter::convert_to_vec;
+    /// # let seq = "TG$$CAGCCG";
+    /// # let vec = convert_to_vec(seq.as_bytes());
+    /// # let mut bwt = DynamicBWT::new();
+    /// # bwt.load_vector(vec);
+    /// let string_count = bwt.get_symbol_count(0);
+    /// assert_eq!(string_count, 2);
+    /// ```
+    #[inline]
     fn get_symbol_count(&self, symbol: u8) -> u64 {
-        self.total_counts[symbol as usize] as u64
+        self.symbol_counts[symbol as usize] as u64
     }
 
     /// This will return the total number of symbols contained by the BWT
+    /// # Examples
+    /// ```rust
+    /// # use msbwt2::msbwt_core::BWT;
+    /// # use msbwt2::dynamic_bwt::DynamicBWT;
+    /// # use msbwt2::bwt_converter::convert_to_vec;
+    /// # let seq = "TG$$CAGCCG";
+    /// # let vec = convert_to_vec(seq.as_bytes());
+    /// # let mut bwt = DynamicBWT::new();
+    /// # bwt.load_vector(vec);
+    /// let total_size = bwt.get_total_size();
+    /// assert_eq!(total_size, 10);
+    /// ```
+    #[inline]
     fn get_total_size(&self) -> u64 {
-        self.symbol_count as u64
+        self.total_count as u64
     }
 
-    /// Performs a range constraint on a BWT range. 
-    /// This implicitly represents prepending a character `sym` to a k-mer represented by `input_range` to create a new range representing a (k+1)-mer.
+    /// Performs a range constraint on a BWT range. This implicitly represents prepending a character `sym` to a k-mer
+    /// represented by `input_range` to create a new range representing a (k+1)-mer.
+    /// # Arguments
+    /// * `sym` - the symbol to pre-pend in integer form
+    /// * `input_range` - the range to pre-pend to
     /// # Safety
     /// This function is unsafe because there are no guarantees that the symbol or bounds will be checked by the implementing structure.
     unsafe fn constrain_range(&self, sym: u8, input_range: &BWTRange) -> BWTRange {
@@ -199,8 +255,8 @@ impl DynamicBWT {
     }
 
     #[inline]
-    pub fn get_total_counts(&self) -> [u64; VC_LEN] {
-        self.total_counts
+    pub fn get_symbol_counts(&self) -> [u64; VC_LEN] {
+        self.symbol_counts
     }
 
     #[inline]
@@ -212,8 +268,20 @@ impl DynamicBWT {
     pub fn get_node_count(&self) -> usize {
         self.tree_bwt.get_node_count()
     }
-    ///*
-    //this is a much simpler version, but is also slower
+    
+    /// This is the main function for adding strings to the DynamicBWT.
+    /// # Arguments
+    /// * val - the string to add
+    /// * sorted - if true, this will add the string to it's sorted position, otherwise the end
+    /// # Examples
+    /// ```rust
+    /// use msbwt2::dynamic_bwt::DynamicBWT;
+    /// let data: String = "ACGNT".to_string();
+    /// let bwt: Vec<u8> = vec![5, 0, 1, 2, 3, 4];
+    /// let mut ubwt: DynamicBWT = Default::default();
+    /// ubwt.insert_string(&data, false);
+    /// assert_eq!(ubwt.to_vec(), bwt);
+    /// ```
     #[inline]
     pub fn insert_string(&mut self, val: &str, sorted: bool) {
         let int_form: Vec<u8> = convert_stoi(val);
@@ -223,7 +291,7 @@ impl DynamicBWT {
         
         if sorted {
             let mut start_index: u64 = 0;
-            next_insert = self.symbol_count;
+            next_insert = self.total_count;
 
             //attempt a short circuit
             let query_len = std::cmp::min(self.sort_query_len as usize, int_form.len());
@@ -267,7 +335,7 @@ impl DynamicBWT {
         let mut symbol: u8 = 0; // $
         for pred_symbol in int_form.iter().rev() {
             next_insert = self.tree_bwt.insert_and_count(next_insert, *pred_symbol);
-            self.total_counts[*pred_symbol as usize] += 1;
+            self.symbol_counts[*pred_symbol as usize] += 1;
             for i in (symbol+1) as usize..VC_LEN {
                 self.start_index[i] += 1;
             }
@@ -279,12 +347,12 @@ impl DynamicBWT {
 
         //one final insert for the $
         self.tree_bwt.insert_and_count(next_insert, 0);
-        self.total_counts[0] += 1;
+        self.symbol_counts[0] += 1;
         for i in (symbol+1) as usize..VC_LEN {
             self.start_index[i] += 1;
         }
 
-        self.symbol_count += (int_form.len()+1) as u64;
+        self.total_count += (int_form.len()+1) as u64;
         self.string_count += 1;
 
         if self.string_count % 10000 == 0 {
@@ -293,6 +361,16 @@ impl DynamicBWT {
         }
     }
 
+    /// This will return the data in a plain Vector format, with one symbol per index.
+    /// # Examples
+    /// ```rust
+    /// use msbwt2::dynamic_bwt::DynamicBWT;
+    /// let data: String = "ACGNT".to_string();
+    /// let bwt: Vec<u8> = vec![5, 0, 1, 2, 3, 4];
+    /// let mut ubwt: DynamicBWT = Default::default();
+    /// ubwt.insert_string(&data, false);
+    /// assert_eq!(ubwt.to_vec(), bwt);
+    /// ```
     #[inline]
     pub fn to_vec(&self) -> Vec<u8> {
         self.tree_bwt.to_vec()
@@ -481,7 +559,7 @@ mod tests {
             };
             assert_eq!(new_range, BWTRange{
                 l: bwt.start_index[sym] as u64, 
-                h: (bwt.start_index[sym]+bwt.total_counts[sym]) as u64
+                h: (bwt.start_index[sym]+bwt.symbol_counts[sym]) as u64
             });
         }
 
@@ -514,7 +592,7 @@ mod tests {
                 };
                 assert_eq!(new_range, BWTRange {
                     l: (bwt.start_index[sym]+sym_count) as u64,
-                    h: (bwt.start_index[sym]+bwt.total_counts[sym]) as u64
+                    h: (bwt.start_index[sym]+bwt.symbol_counts[sym]) as u64
                 });
 
                 //check if we need to adjust our expected values at all
