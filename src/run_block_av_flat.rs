@@ -1,6 +1,8 @@
 
 use arrayvec::ArrayVec;
 
+/// This is the number of bytes used for data storage.
+/// When it reaches this size, the block should be split to avoid issues.
 pub const MAX_BLOCK_SIZE: usize = 63; // best for current B+
 const CAPACITY_BUFFER: usize = MAX_BLOCK_SIZE+2;
 
@@ -10,11 +12,12 @@ pub const VC_LEN: usize = 6;      //$ A C G N T
 pub const NUMBER_BITS: usize = 8; //8-letterBits
 /// Contains the right-shifted number mask
 pub const COUNT_MASK: u8 = 0xFF;
+/// Stores the value of a half-full u8 block (e.g. 128)
 pub const HALF_FULL: u8 = 128;
 /// Multiplier for multi-byte runs
 pub const NUM_POWER: usize = 256;  //2**numberBits
 
-//TODO: if this is useful, change the name
+/// A run-length encoded block of data implemented with an ArrayVec
 #[derive(Clone,Debug,PartialEq)]
 pub struct RLEBlock {
     runs: ArrayVec<(u8, u8), CAPACITY_BUFFER>,
@@ -36,21 +39,44 @@ impl Default for RLEBlock {
 }
 
 impl RLEBlock {
+    /// Returns the total number of symbols encoded by this RLEBlock
     #[inline]
     pub fn get_values_contained(&self) -> u64 {
         self.values_contained
     }
 
+    /// Returns the symbol counts encoded by this RLEBlock
     #[inline]
     pub fn get_symbol_counts(&self) -> [u64; VC_LEN] {
         self.symbol_counts
     }
 
+    /// Returns the current usage of the RLEBlock's underlying storage.
+    /// If this reaches the `MAX_BLOCK_SIZE`, then the block should be split.
     #[inline]
     pub fn block_len(&self) -> usize {
         self.runs.len()
     }
 
+    /// Performs a rank/count operation.
+    /// For a given data index, this will count all occurences of symbol `value` up to that index.
+    /// # Arguments
+    /// * `position` - the index to count to 
+    /// * `symbol` - the symbol to count
+    /// # Example
+    /// ```rust
+    /// use msbwt2::run_block_av_flat::RLEBlock;
+    /// let mut block: RLEBlock = Default::default();
+    /// //"data" is inserted in-order
+    /// let data: Vec<u8> =            vec![0, 1, 1, 1, 2, 0, 2, 3, 4, 1, 1, 1, 0];
+    /// //"expected_count" is the number of occurences of the inserted symbol BEFORE this one
+    /// let expected_count: Vec<u64> = vec![0, 0, 1, 2, 0, 1, 1, 0, 0, 3, 4, 5, 2];
+    /// for (i, v) in data.iter().enumerate() {
+    ///     assert_eq!(block.count(i as u64, *v), expected_count[i]);
+    ///     assert_eq!(block.insert_and_count(i as u64, *v), expected_count[i]);
+    /// }
+    /// assert_eq!(block.to_vec(), data);
+    /// ```
     #[inline]
     pub fn count(&self, position: u64, symbol: u8) -> u64 {
         //make sure we're inserting valid symbols into a valid position
@@ -79,6 +105,25 @@ impl RLEBlock {
         total_counts[symbol as usize]
     }
 
+    /// Performs a rank/count operation while also inserting that symbol at the provided index.
+    /// For a given data index, this will count all occurences of symbol `value` up to that index, and then insert an addition `value` at that index.
+    /// # Arguments
+    /// * `position` - the index to count to 
+    /// * `symbol` - the symbol to count
+    /// # Example
+    /// ```rust
+    /// use msbwt2::run_block_av_flat::RLEBlock;
+    /// let mut block: RLEBlock = Default::default();
+    /// //"data" is inserted in-order
+    /// let data: Vec<u8> =            vec![0, 1, 1, 1, 2, 0, 2, 3, 4, 1, 1, 1, 0];
+    /// //"expected_count" is the number of occurences of the inserted symbol BEFORE this one
+    /// let expected_count: Vec<u64> = vec![0, 0, 1, 2, 0, 1, 1, 0, 0, 3, 4, 5, 2];
+    /// for (i, v) in data.iter().enumerate() {
+    ///     assert_eq!(block.count(i as u64, *v), expected_count[i]);
+    ///     assert_eq!(block.insert_and_count(i as u64, *v), expected_count[i]);
+    /// }
+    /// assert_eq!(block.to_vec(), data);
+    /// ```
     #[inline]
     pub fn insert_and_count(&mut self, position: u64, symbol: u8) -> u64 {
         //make sure we're inserting valid symbols into a valid position
@@ -207,33 +252,31 @@ mod tests {
     fn test_init() {
         let block: RLEBlock = Default::default();
         assert_eq!(block.runs.to_vec(), vec![]);
+        for symbol in 0..VC_LEN {
+            assert_eq!(0, block.count(0, symbol as u8));
+        }
     }
     
     #[test]
     fn test_insert() {
         let mut block: RLEBlock = Default::default();
+        assert_eq!(block.count(0, 0), 0);
         assert_eq!(block.insert_and_count(0, 0), 0);
-        //assert_eq!(block.run_symbols, vec![0]);
-        //assert_eq!(block.run_counts, vec![1]);
 
         for _ in 0..256 {
+            assert_eq!(block.count(1, 1), 0);
             assert_eq!(block.insert_and_count(1, 1), 0);
         }
-        //assert_eq!(block.run_symbols, vec![0, 1, 1]);
-        //assert_eq!(block.run_counts, vec![1, 0, 1]);
         
         for _ in 0..256 {
+            assert_eq!(block.count(1, 0), 1);
             assert_eq!(block.insert_and_count(1, 0), 1);
         }
-        //assert_eq!(block.run_symbols, vec![0, 0, 1, 1]);
-        //assert_eq!(block.run_counts, vec![1, 1, 0, 1]);
         
         for _ in 0..255 {
+            assert_eq!(block.count(0, 2), 0);
             assert_eq!(block.insert_and_count(0, 2), 0);
         }
-        //assert_eq!(block.run_symbols, vec![2, 0, 0, 1, 1]);
-        //assert_eq!(block.run_counts, vec![255, 1, 1, 0, 1]);
-        //assert_eq!(block.runs.to_vec(), vec![(2, 255), (0, 1), (0, 1), (1, 0), (1,1)]);
         assert_eq!(block.runs.to_vec(), vec![(2, 255), (0, 129), (0, 128), (1, 128), (1, 128)])
     }
     
@@ -242,11 +285,11 @@ mod tests {
         //middle split
         let mut block: RLEBlock = Default::default();
         for _ in 0..255 {
+            assert_eq!(block.count(0, 0), 0);
             assert_eq!(block.insert_and_count(0, 0), 0);
         }
+        assert_eq!(block.count(128, 1), 0);
         assert_eq!(block.insert_and_count(128, 1), 0);
-        //assert_eq!(block.run_symbols, vec![0, 0, 1, 0, 0]);
-        //assert_eq!(block.run_counts, vec![0, 128, 1, 0, 128]);
         assert_eq!(block.runs.to_vec(), vec![(0, 128), (1, 1), (0, 127)]);
     }
     
@@ -258,8 +301,6 @@ mod tests {
         for _ in 0..256 {
             block.increment_run(0);
         }
-        //assert_eq!(block.run_symbols, vec![0, 0, 0]);
-        //assert_eq!(block.run_counts, vec![0, 0, 1]);
         assert_eq!(block.runs.to_vec(), vec![(0, 129), (0, 128)]);
     }
 
@@ -275,8 +316,6 @@ mod tests {
         let mut runs = ArrayVec::<(u8, u8), CAPACITY_BUFFER>::new();
         runs.try_extend_from_slice(&vec![(0, 128), (0, 128)]).unwrap();
         assert_eq!(block, RLEBlock {
-            //run_symbols: vec![0, 0],
-            //run_counts: vec![0, 128],
             runs,
             symbol_counts: [256, 0, 0, 0, 0, 0],
             values_contained: 256
@@ -285,8 +324,6 @@ mod tests {
         let mut runs = ArrayVec::<(u8, u8), CAPACITY_BUFFER>::new();
         runs.try_extend_from_slice(&vec![(1, 1), (0, 128), (0, 128)]).unwrap();
         assert_eq!(new_block, RLEBlock {
-            //run_symbols: vec![1, 0, 0],
-            //run_counts: vec![1, 0, 128],
             runs,
             symbol_counts: [256, 1, 0, 0, 0, 0],
             values_contained: 257
@@ -302,8 +339,6 @@ mod tests {
         let mut runs = ArrayVec::<(u8, u8), CAPACITY_BUFFER>::new();
         runs.try_extend_from_slice(&vec![(0, 1), (1, 1)]).unwrap();
         assert_eq!(block, RLEBlock {
-            //run_symbols: vec![0, 1],
-            //run_counts: vec![1, 1],
             runs,
             symbol_counts: [1, 1, 0, 0, 0, 0],
             values_contained: 2
@@ -311,8 +346,6 @@ mod tests {
         let mut runs = ArrayVec::<(u8, u8), CAPACITY_BUFFER>::new();
         runs.try_extend_from_slice(&vec![(0, 127), (0, 128)]).unwrap();
         assert_eq!(new_block, RLEBlock {
-            //run_symbols: vec![0, 0],
-            //run_counts: vec![0xFF, 0xFF],
             runs,
             symbol_counts: [255, 0, 0, 0, 0, 0],
             values_contained: 255
@@ -328,8 +361,6 @@ mod tests {
         let mut runs = ArrayVec::<(u8, u8), CAPACITY_BUFFER>::new();
         runs.try_extend_from_slice(&vec![(0, 128), (0, 127)]).unwrap();
         assert_eq!(block, RLEBlock {
-            //run_symbols: vec![0, 0],
-            //run_counts: vec![0xFF, 0xFF],
             runs,
             symbol_counts: [255, 0, 0, 0, 0, 0],
             values_contained: 255
@@ -337,8 +368,6 @@ mod tests {
         let mut runs = ArrayVec::<(u8, u8), CAPACITY_BUFFER>::new();
         runs.try_extend_from_slice(&vec![(1, 1), (0, 1)]).unwrap();
         assert_eq!(new_block, RLEBlock {
-            //run_symbols: vec![1, 0],
-            //run_counts: vec![1, 1],
             runs,
             symbol_counts: [1, 1, 0, 0, 0, 0],
             values_contained: 2
@@ -360,6 +389,7 @@ mod tests {
         let data: Vec<u8> = vec![0, 1, 1, 1, 2, 0, 2, 3, 4, 1, 1, 1, 0];
         let expected_count: Vec<u64> = vec![0, 0, 1, 2, 0, 1, 1, 0, 0, 3, 4, 5, 2];
         for (i, v) in data.iter().enumerate() {
+            assert_eq!(block.count(i as u64, *v), expected_count[i]);
             assert_eq!(block.insert_and_count(i as u64, *v), expected_count[i]);
         }
         assert_eq!(block.to_vec(), data);
@@ -379,6 +409,9 @@ mod tests {
                     expected_count += 1;
                 }
             }
+
+            let pre_count = block.count(positions[i], inserted[i]);
+            assert_eq!(pre_count, expected_count);
 
             let count = block.insert_and_count(positions[i], inserted[i]);
             assert_eq!(block.to_vec(), data);
