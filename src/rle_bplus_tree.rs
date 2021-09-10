@@ -3,15 +3,12 @@ extern crate arrayvec;
 
 use arrayvec::ArrayVec;
 
-//use crate::rle_block::{VC_LEN, MAX_BLOCK_SIZE, RLEBlock}; //uses the RLE on a Vec<u8>
-//use crate::rle_block_av::{VC_LEN, MAX_BLOCK_SIZE, RLEBlock}; //uses the RLE on an ArrayVec<u8; {capacity}>
-//use crate::run_block::{VC_LEN, MAX_BLOCK_SIZE, RLEBlock}; //uses (u8, u8) on a Vec
-//use crate::run_block_av::{VC_LEN, MAX_BLOCK_SIZE, RLEBlock};
 use crate::run_block_av_flat::{VC_LEN, MAX_BLOCK_SIZE, RLEBlock}; // current best
 
 const MAX_NODE_SIZE: usize = 64; // must be even
 const NODE_MIDPOINT: usize = MAX_NODE_SIZE / 2;
 
+/// A B+ tree structure that has special functionality to encode runs of the same symbol in a defined alphabet
 #[derive(Clone)]
 pub struct RLEBPlusTree {
     /// the current height of the tree
@@ -24,6 +21,7 @@ pub struct RLEBPlusTree {
     next_child: Vec<usize>
 }
 
+/// A node in the B+ tree
 #[derive(Clone,Debug)]
 struct RLEBPlusNode {
     /// stores if this is a leaf node or internal node
@@ -49,8 +47,8 @@ impl Default for RLEBPlusTree {
         let root: RLEBPlusNode = RLEBPlusNode {
             is_leaf: true,
             parent: 0,
-            total_counts,//: vec![0],
-            total_symbols,//: vec![[0; VC_LEN]],
+            total_counts,
+            total_symbols,
             children: vec![0]
         };
 
@@ -58,7 +56,7 @@ impl Default for RLEBPlusTree {
             height: 0,
             nodes: vec![root],
             data_arena: children,
-            next_child: vec![0]//vec![1, 0]
+            next_child: vec![0]
         }
     }
 }
@@ -78,16 +76,34 @@ impl<'a> IntoIterator for &'a RLEBPlusTree {
 }
 
 impl RLEBPlusTree {
+    /// Returns the current height of the B+ tree
     #[inline]
     pub fn get_height(&self) -> usize {
         self.height
     }
 
+    /// Returns the total number of data nodes (i.e. leaf nodes) in the B+ tree
     #[inline]
     pub fn get_node_count(&self) -> usize {
         self.data_arena.len()
     }
 
+    /// Performs a rank/count operation.
+    /// For a given data index, this will count all occurences of symbol `value` up to that index.
+    /// # Arguments
+    /// * `index` - the index to count to 
+    /// * `value` - the symbol to count
+    /// # Examples
+    /// ```rust
+    /// use msbwt2::msbwt_core::BWT;
+    /// use msbwt2::dynamic_bwt::DynamicBWT;
+    /// use msbwt2::bwt_converter::convert_to_vec;
+    /// //strings "ACGT" and "CCGG"
+    /// let seq = "TG$$CAGCCG";
+    /// let vec = convert_to_vec(seq.as_bytes());
+    /// let mut bwt = DynamicBWT::new();
+    /// bwt.load_vector(vec);
+    /// ```
     #[inline]
     pub fn count(&self, index: u64, value: u8) -> u64 {
         //start with root node 0
@@ -366,15 +382,17 @@ impl RLEBPlusTree {
     }
 }
 
+/// An iterator over the data nodes of the B+ tree that will perform an in-order traversal of the contained characters.
+/// Any runs are automatically decompressed into single symbols.
 pub struct RLEBPlusTreeIterator<'a> {
     tree: &'a RLEBPlusTree,
     next_child_index: usize,
-    //current_block_iter: Box::<dyn Iterator<Item = u8>>//Vec<u8>
     current_block_iter: std::vec::IntoIter<u8>
 }
 
 impl<'a> Iterator for RLEBPlusTreeIterator<'a> {
     type Item = u8;
+    /// Will return the next symbol contained by the compressed B+ tree data
     fn next(&mut self) -> Option<u8> {
         match self.current_block_iter.next() {
             //current block has data, so return it
@@ -417,6 +435,9 @@ mod tests {
         let data: Vec<u8> =               vec![0, 1, 1, 1, 2, 0, 2, 3, 4, 1, 1, 1, 0];
         let expected_counts: Vec<u64> = vec![0, 0, 1, 2, 0, 1, 1, 0, 0, 3, 4, 5, 2];
         for (i, v) in data.iter().enumerate() {
+            let pre_count = tree.count(i as u64, *v);
+            assert_eq!(pre_count, expected_counts[i]);
+
             let count = tree.insert_and_count(i as u64, *v);
             println!("{} {:?}", i, tree.to_vec());
             assert_eq!(count, expected_counts[i]);
@@ -431,6 +452,9 @@ mod tests {
         let data: Vec<u8> =               vec![3, 0, 3, 0, 5, 2, 5, 2, 3, 1, 2];
         let expected_counts: Vec<u64> = vec![0, 0, 1, 1, 0, 0, 1, 1, 2, 0, 2];
         for (i, v) in data.iter().enumerate() {
+            let pre_count = tree.count(i as u64, *v);
+            assert_eq!(pre_count, expected_counts[i]);
+
             let count = tree.insert_and_count(i as u64, *v);
             println!("{} {:?}", i, tree.to_vec());
             assert_eq!(tree.to_vec(), data[..i+1].to_vec());
@@ -459,6 +483,9 @@ mod tests {
                 }
             }
 
+            let pre_count = tree.count(positions[i] as u64, inserted[i]);
+            assert_eq!(pre_count, expected_count);
+
             let count = tree.insert_and_count(positions[i] as u64, inserted[i]);
             println!("{} {:?}", i, tree.to_vec());
             assert_eq!(tree.to_vec(), data);
@@ -485,6 +512,9 @@ mod tests {
                 }
             }
 
+            let pre_count = tree.count(positions[i] as u64, inserted[i]);
+            assert_eq!(pre_count, expected_count);
+            
             let count = tree.insert_and_count(positions[i] as u64, inserted[i]);
             println!("{} {:?}", i, tree.to_vec());
             assert_eq!(tree.to_vec(), data);
@@ -508,7 +538,11 @@ mod tests {
             println!("RANDOM_DATA: {:?}", data);
             println!("inserted: {:?}", inserted);
             println!("positions: {:?}", positions);
-            tree.insert_and_count(position as u64, symbol);
+            
+            let pre_count = tree.count(position as u64, symbol);
+            let post_count = tree.insert_and_count(position as u64, symbol);
+            assert_eq!(pre_count, post_count);
+            
             assert_eq!(tree.to_vec(), data);
             assert_eq!(tree.into_iter().collect::<Vec<u8>>(), data);
         }

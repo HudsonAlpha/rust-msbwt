@@ -40,6 +40,7 @@ pub struct DynamicBWT {
 }
 
 impl Default for DynamicBWT {
+    /// This will create an empty BWT that's ready to have strings added directly to it.
     fn default() -> Self {
         DynamicBWT {
             string_count: 0,
