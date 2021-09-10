@@ -11,13 +11,11 @@ const INITIAL_QUERY: usize = 10;
 const COST_FACTOR: f64 = 0.000001;
 
 pub struct DynamicBWT {
-    string_count: usize,
-    symbol_count: usize,
     tree_bwt: RLEBPlusTree,
-    //tree_bwt: RLEBinaryTree,
-    //tree_bwt: RLESkipList,
-    total_counts: [usize; VC_LEN],
-    offsets: [usize; VC_LEN],
+    total_counts: [u64; VC_LEN],
+    start_index: [u64; VC_LEN],
+    string_count: u64,
+    symbol_count: u64,
     sort_query_len: f64,
     short_circuits: [usize; 3],
 }
@@ -29,9 +27,86 @@ impl Default for DynamicBWT {
             symbol_count: 0,
             tree_bwt: Default::default(),
             total_counts: [0; VC_LEN],
-            offsets: [0; VC_LEN],
+            start_index: [0; VC_LEN],
             sort_query_len: INITIAL_QUERY as f64,
             short_circuits: [0; 3]
+        }
+    }
+}
+
+impl BWT for DynamicBWT {
+    /// Initializes the BWT from a compressed BWT vector.
+    fn load_vector(&mut self, bwt: Vec<u8>) {
+        //reset all of these 
+        self.tree_bwt = Default::default();
+        self.total_counts = [0; VC_LEN];
+        self.sort_query_len = INITIAL_QUERY as f64;
+        self.short_circuits = [0; 3];
+
+        //general strategy here is to build up the count of a character and then insert them
+        let mut prev_char: u8 = 255;
+        let mut current_char: u8;
+        let mut power_multiple: u64 = 1;
+        let mut current_count: u64;
+
+        //go through each compressed block in the RLE encoded vector to calculate total character counts
+        let mut current_index: u64 = 0;
+        for value in bwt {
+            current_char = value & MASK;
+            if current_char == prev_char {
+                power_multiple *= NUM_POWER as u64;
+            }
+            else {
+                power_multiple = 1;
+            }
+            prev_char = current_char;
+            current_count = (value >> LETTER_BITS) as u64 * power_multiple;
+
+            for _ in 0..current_count {
+                let _dummy = self.tree_bwt.insert_and_count(current_index, current_char);
+                current_index += 1;
+            }
+
+            //add this to the total counts
+            self.total_counts[current_char as usize] += current_count;
+        }
+
+        self.string_count = self.total_counts[0];
+        self.symbol_count = self.total_counts.iter().sum();
+        self.start_index = self.total_counts.iter().scan(0, |sum, &count| {
+            *sum += count;
+            Some(*sum - count)
+        }).collect::<Vec<u64>>().try_into().unwrap();
+    }
+
+    /// Initializes the BWT from the numpy file format for compressed BWTs
+    fn load_numpy_file(&mut self, filename: &str) -> std::io::Result<()> {
+        Err(
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("NO IMPL")
+            )
+        )
+    }
+
+    /// Returns the total number of occurences of a given symbol
+    fn get_symbol_count(&self, symbol: u8) -> u64 {
+        self.total_counts[symbol as usize] as u64
+    }
+
+    /// This will return the total number of symbols contained by the BWT
+    fn get_total_size(&self) -> u64 {
+        self.symbol_count as u64
+    }
+
+    /// Performs a range constraint on a BWT range. 
+    /// This implicitly represents prepending a character `sym` to a k-mer represented by `input_range` to create a new range representing a (k+1)-mer.
+    /// # Safety
+    /// This function is unsafe because there are no guarantees that the symbol or bounds will be checked by the implementing structure.
+    unsafe fn constrain_range(&self, sym: u8, input_range: &BWTRange) -> BWTRange {
+        BWTRange {
+            l: (self.start_index[sym as usize]+self.tree_bwt.count(input_range.l, sym)),
+            h: (self.start_index[sym as usize]+self.tree_bwt.count(input_range.h, sym))
         }
     }
 }
@@ -48,7 +123,7 @@ impl DynamicBWT {
     }
 
     #[inline]
-    pub fn get_total_counts(&self) -> [usize; VC_LEN] {
+    pub fn get_total_counts(&self) -> [u64; VC_LEN] {
         self.total_counts
     }
 
@@ -68,27 +143,27 @@ impl DynamicBWT {
         let int_form: Vec<u8> = convert_stoi(val);
 
         //initial position is the total number of string
-        let mut next_insert;
+        let mut next_insert: u64;
         
         if sorted {
-            let mut start_index = 0;
+            let mut start_index: u64 = 0;
             next_insert = self.symbol_count;
 
             //attempt a short circuit
             let query_len = std::cmp::min(self.sort_query_len as usize, int_form.len());
             for pred_symbol in int_form[..query_len].iter().rev() {
-                start_index = self.tree_bwt.count(start_index, *pred_symbol)+self.offsets[*pred_symbol as usize];
-                next_insert = self.tree_bwt.count(next_insert, *pred_symbol)+self.offsets[*pred_symbol as usize];
+                start_index = self.tree_bwt.count(start_index, *pred_symbol)+self.start_index[*pred_symbol as usize];
+                next_insert = self.tree_bwt.count(next_insert, *pred_symbol)+self.start_index[*pred_symbol as usize];
             }
             start_index = self.tree_bwt.count(start_index, 0);
             next_insert = self.tree_bwt.count(next_insert, 0);
 
             if start_index != next_insert {
-                let original_ni: usize = next_insert;
+                let original_ni: u64 = next_insert;
 
                 //short circuit failed
                 for pred_symbol in int_form.iter().rev() {
-                    next_insert = self.tree_bwt.count(next_insert, *pred_symbol)+self.offsets[*pred_symbol as usize];
+                    next_insert = self.tree_bwt.count(next_insert, *pred_symbol)+self.start_index[*pred_symbol as usize];
                 }
                 next_insert = self.tree_bwt.count(next_insert, 0);
                 
@@ -118,11 +193,11 @@ impl DynamicBWT {
             next_insert = self.tree_bwt.insert_and_count(next_insert, *pred_symbol);
             self.total_counts[*pred_symbol as usize] += 1;
             for i in (symbol+1) as usize..VC_LEN {
-                self.offsets[i] += 1;
+                self.start_index[i] += 1;
             }
 
             //after any adjustments add in the new offset for the symbol we're currently at
-            next_insert += self.offsets[*pred_symbol as usize];
+            next_insert += self.start_index[*pred_symbol as usize];
             symbol = *pred_symbol;
         }
 
@@ -130,10 +205,10 @@ impl DynamicBWT {
         self.tree_bwt.insert_and_count(next_insert, 0);
         self.total_counts[0] += 1;
         for i in (symbol+1) as usize..VC_LEN {
-            self.offsets[i] += 1;
+            self.start_index[i] += 1;
         }
 
-        self.symbol_count += int_form.len()+1;
+        self.symbol_count += (int_form.len()+1) as u64;
         self.string_count += 1;
 
         if self.string_count % 10000 == 0 {
@@ -145,83 +220,6 @@ impl DynamicBWT {
     #[inline]
     pub fn to_vec(&self) -> Vec<u8> {
         self.tree_bwt.to_vec()
-    }
-}
-
-impl BWT for DynamicBWT {
-    /// Initializes the BWT from a compressed BWT vector.
-    fn load_vector(&mut self, bwt: Vec<u8>) {
-        //reset all of these 
-        self.tree_bwt = Default::default();
-        self.total_counts = [0; VC_LEN];
-        self.sort_query_len = INITIAL_QUERY as f64;
-        self.short_circuits = [0; 3];
-
-        //general strategy here is to build up the count of a character and then insert them
-        let mut prev_char: u8 = 255;
-        let mut current_char: u8;
-        let mut power_multiple: u64 = 1;
-        let mut current_count: u64;
-
-        //go through each compressed block in the RLE encoded vector to calculate total character counts
-        let mut current_index: usize = 0;
-        for value in bwt {
-            current_char = value & MASK;
-            if current_char == prev_char {
-                power_multiple *= NUM_POWER as u64;
-            }
-            else {
-                power_multiple = 1;
-            }
-            prev_char = current_char;
-            current_count = (value >> LETTER_BITS) as u64 * power_multiple;
-
-            for _ in 0..current_count {
-                let _dummy = self.tree_bwt.insert_and_count(current_index, current_char);
-                current_index += 1;
-            }
-
-            //add this to the total counts
-            self.total_counts[current_char as usize] += current_count as usize;
-        }
-
-        self.string_count = self.total_counts[0];
-        self.symbol_count = self.total_counts.iter().sum();
-        self.offsets = self.total_counts.iter().scan(0, |sum, &count| {
-            *sum += count;
-            Some(*sum - count)
-        }).collect::<Vec<usize>>().try_into().unwrap();
-    }
-
-    /// Initializes the BWT from the numpy file format for compressed BWTs
-    fn load_numpy_file(&mut self, filename: &str) -> std::io::Result<()> {
-        Err(
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("NO IMPL")
-            )
-        )
-    }
-
-    /// Returns the total number of occurences of a given symbol
-    fn get_symbol_count(&self, symbol: u8) -> u64 {
-        self.total_counts[symbol as usize] as u64
-    }
-
-    /// This will return the total number of symbols contained by the BWT
-    fn get_total_size(&self) -> u64 {
-        self.symbol_count as u64
-    }
-
-    /// Performs a range constraint on a BWT range. 
-    /// This implicitly represents prepending a character `sym` to a k-mer represented by `input_range` to create a new range representing a (k+1)-mer.
-    /// # Safety
-    /// This function is unsafe because there are no guarantees that the symbol or bounds will be checked by the implementing structure.
-    unsafe fn constrain_range(&self, sym: u8, input_range: &BWTRange) -> BWTRange {
-        BWTRange {
-            l: (self.offsets[sym as usize]+self.tree_bwt.count(input_range.l as usize, sym)) as u64,
-            h: (self.offsets[sym as usize]+self.tree_bwt.count(input_range.h as usize, sym)) as u64
-        }
     }
 }
 
@@ -407,8 +405,8 @@ mod tests {
                 bwt.constrain_range(sym as u8, &initial_range)
             };
             assert_eq!(new_range, BWTRange{
-                l: bwt.offsets[sym] as u64, 
-                h: (bwt.offsets[sym]+bwt.total_counts[sym]) as u64
+                l: bwt.start_index[sym] as u64, 
+                h: (bwt.start_index[sym]+bwt.total_counts[sym]) as u64
             });
         }
 
@@ -426,8 +424,8 @@ mod tests {
                     bwt.constrain_range(sym as u8, &initial_range)
                 };
                 assert_eq!(new_range, BWTRange {
-                    l: bwt.offsets[sym] as u64,
-                    h: (bwt.offsets[sym]+sym_count) as u64
+                    l: bwt.start_index[sym] as u64,
+                    h: (bwt.start_index[sym]+sym_count) as u64
                 });
 
                 //test from the current index to the high point
@@ -440,8 +438,8 @@ mod tests {
                     bwt.constrain_range(sym as u8, &initial_range)
                 };
                 assert_eq!(new_range, BWTRange {
-                    l: (bwt.offsets[sym]+sym_count) as u64,
-                    h: (bwt.offsets[sym]+bwt.total_counts[sym]) as u64
+                    l: (bwt.start_index[sym]+sym_count) as u64,
+                    h: (bwt.start_index[sym]+bwt.total_counts[sym]) as u64
                 });
 
                 //check if we need to adjust our expected values at all

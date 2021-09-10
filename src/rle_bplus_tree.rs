@@ -31,9 +31,9 @@ struct RLEBPlusNode {
     /// the parent node ID
     parent: usize,
     /// stores the total symbol counts for that child node and all its children
-    total_counts: ArrayVec<usize, MAX_NODE_SIZE>,
+    total_counts: ArrayVec<u64, MAX_NODE_SIZE>,
     /// stores the individual symbol counts for that child node and all its children
-    total_symbols: ArrayVec<[usize; VC_LEN], MAX_NODE_SIZE>,
+    total_symbols: ArrayVec<[u64; VC_LEN], MAX_NODE_SIZE>,
     /// the indices of any child nodes; if it's a leaf this refers to RLEBlocks, otherwise other RLEBPlusNodes
     children: Vec<usize>
 }
@@ -42,9 +42,9 @@ impl Default for RLEBPlusTree {
     #[inline]
     fn default() -> Self {
         let children: Vec<RLEBlock> = vec![Default::default()];
-        let mut total_counts = ArrayVec::<usize, MAX_NODE_SIZE>::new();
+        let mut total_counts = ArrayVec::<u64, MAX_NODE_SIZE>::new();
         total_counts.push(0);
-        let mut total_symbols = ArrayVec::<[usize; VC_LEN], MAX_NODE_SIZE>::new();
+        let mut total_symbols = ArrayVec::<[u64; VC_LEN], MAX_NODE_SIZE>::new();
         total_symbols.push([0; VC_LEN]);
         let root: RLEBPlusNode = RLEBPlusNode {
             is_leaf: true,
@@ -89,13 +89,13 @@ impl RLEBPlusTree {
     }
 
     #[inline]
-    pub fn count(&self, index: usize, value: u8) -> usize{
+    pub fn count(&self, index: u64, value: u8) -> u64 {
         //start with root node 0
         let mut current_node_index: usize = 0;
         let mut current_node: &RLEBPlusNode = &self.nodes[current_node_index];
-        let mut relative_index: usize = index;
-        let mut total_count: usize = 0;
-        let mut tc: usize;
+        let mut relative_index: u64 = index;
+        let mut total_count: u64 = 0;
+        let mut tc: u64;
             
         //iterate downwards until we find a leaf node point to run blocks
         while !current_node.is_leaf {
@@ -130,13 +130,13 @@ impl RLEBPlusTree {
     }
 
     #[inline]
-    pub fn insert_and_count(&mut self, index: usize, value: u8) -> usize{
+    pub fn insert_and_count(&mut self, index: u64, value: u8) -> u64{
         //start with root node 0
         let mut current_node_index: usize = 0;
         let mut current_node = &mut self.nodes[current_node_index];
-        let mut relative_index: usize = index;
-        let mut total_count: usize = 0;
-        let mut tc: usize;
+        let mut relative_index: u64 = index;
+        let mut total_count: u64 = 0;
+        let mut tc: u64;
 
         //iterate downwards until we find a leaf node point to run blocks
         while !current_node.is_leaf {
@@ -228,8 +228,8 @@ impl RLEBPlusTree {
                 let rtch = current_node.children.drain(NODE_MIDPOINT..).collect();
                 
                 //get the total counts for the new left node
-                let left_total_count: usize = current_node.total_counts.iter().sum();
-                let mut left_total_symbols: [usize; VC_LEN] = [0; VC_LEN];
+                let left_total_count: u64 = current_node.total_counts.iter().sum();
+                let mut left_total_symbols: [u64; VC_LEN] = [0; VC_LEN];
                 for ts in current_node.total_symbols.iter() {
                     for i in 0..VC_LEN {
                         left_total_symbols[i] += ts[i];
@@ -246,8 +246,8 @@ impl RLEBPlusTree {
                 };
 
                 //get the total counts for the new right node
-                let right_total_count: usize = right_child.total_counts.iter().sum();
-                let mut right_total_symbols: [usize; VC_LEN] = [0; VC_LEN];
+                let right_total_count: u64 = right_child.total_counts.iter().sum();
+                let mut right_total_symbols: [u64; VC_LEN] = [0; VC_LEN];
                 for ts in right_child.total_symbols.iter() {
                     for i in 0..VC_LEN {
                         right_total_symbols[i] += ts[i];
@@ -415,9 +415,9 @@ mod tests {
     fn test_simple_inserts() {
         let mut tree: RLEBPlusTree = Default::default();
         let data: Vec<u8> =               vec![0, 1, 1, 1, 2, 0, 2, 3, 4, 1, 1, 1, 0];
-        let expected_counts: Vec<usize> = vec![0, 0, 1, 2, 0, 1, 1, 0, 0, 3, 4, 5, 2];
+        let expected_counts: Vec<u64> = vec![0, 0, 1, 2, 0, 1, 1, 0, 0, 3, 4, 5, 2];
         for (i, v) in data.iter().enumerate() {
-            let count = tree.insert_and_count(i, *v);
+            let count = tree.insert_and_count(i as u64, *v);
             println!("{} {:?}", i, tree.to_vec());
             assert_eq!(count, expected_counts[i]);
         }
@@ -429,9 +429,9 @@ mod tests {
     fn test_failure_case_001() {
         let mut tree: RLEBPlusTree = Default::default();
         let data: Vec<u8> =               vec![3, 0, 3, 0, 5, 2, 5, 2, 3, 1, 2];
-        let expected_counts: Vec<usize> = vec![0, 0, 1, 1, 0, 0, 1, 1, 2, 0, 2];
+        let expected_counts: Vec<u64> = vec![0, 0, 1, 1, 0, 0, 1, 1, 2, 0, 2];
         for (i, v) in data.iter().enumerate() {
-            let count = tree.insert_and_count(i, *v);
+            let count = tree.insert_and_count(i as u64, *v);
             println!("{} {:?}", i, tree.to_vec());
             assert_eq!(tree.to_vec(), data[..i+1].to_vec());
             assert_eq!(count, expected_counts[i]);
@@ -459,7 +459,7 @@ mod tests {
                 }
             }
 
-            let count = tree.insert_and_count(positions[i], inserted[i]);
+            let count = tree.insert_and_count(positions[i] as u64, inserted[i]);
             println!("{} {:?}", i, tree.to_vec());
             assert_eq!(tree.to_vec(), data);
             assert_eq!(count, expected_count);
@@ -485,7 +485,7 @@ mod tests {
                 }
             }
 
-            let count = tree.insert_and_count(positions[i], inserted[i]);
+            let count = tree.insert_and_count(positions[i] as u64, inserted[i]);
             println!("{} {:?}", i, tree.to_vec());
             assert_eq!(tree.to_vec(), data);
             assert_eq!(count, expected_count);
@@ -508,7 +508,7 @@ mod tests {
             println!("RANDOM_DATA: {:?}", data);
             println!("inserted: {:?}", inserted);
             println!("positions: {:?}", positions);
-            tree.insert_and_count(position, symbol);
+            tree.insert_and_count(position as u64, symbol);
             assert_eq!(tree.to_vec(), data);
             assert_eq!(tree.into_iter().collect::<Vec<u8>>(), data);
         }

@@ -18,8 +18,8 @@ pub const NUM_POWER: usize = 256;  //2**numberBits
 #[derive(Clone,Debug,PartialEq)]
 pub struct RLEBlock {
     runs: ArrayVec<(u8, u8), CAPACITY_BUFFER>,
-    symbol_counts: [usize; VC_LEN],
-    values_contained: usize
+    symbol_counts: [u64; VC_LEN],
+    values_contained: u64
 }
 
 impl Default for RLEBlock {
@@ -37,12 +37,12 @@ impl Default for RLEBlock {
 
 impl RLEBlock {
     #[inline]
-    pub fn get_values_contained(&self) -> usize {
+    pub fn get_values_contained(&self) -> u64 {
         self.values_contained
     }
 
     #[inline]
-    pub fn get_symbol_counts(&self) -> [usize; VC_LEN] {
+    pub fn get_symbol_counts(&self) -> [u64; VC_LEN] {
         self.symbol_counts
     }
 
@@ -52,14 +52,14 @@ impl RLEBlock {
     }
 
     #[inline]
-    pub fn count(&self, position: usize, symbol: u8) -> usize {
+    pub fn count(&self, position: u64, symbol: u8) -> u64 {
         //make sure we're inserting valid symbols into a valid position
         assert!(symbol < VC_LEN as u8);
         assert!(position <= self.values_contained);
         
         //its more efficient to count all symbols and return the one we care about than do checks inside the loop
-        let mut pos_end: usize = 0;
-        let mut total_counts: [usize; VC_LEN] = [0; VC_LEN];
+        let mut pos_end: u64 = 0;
+        let mut total_counts: [u64; VC_LEN] = [0; VC_LEN];
         
         //now iterate
         let mut i: usize = 0;
@@ -68,8 +68,8 @@ impl RLEBlock {
         while pos_end < position {
             sym = self.runs[i].0;
             count = self.runs[i].1;
-            total_counts[sym as usize] += count as usize;
-            pos_end += count as usize;
+            total_counts[sym as usize] += count as u64;
+            pos_end += count as u64;
             i += 1;
         }
         //we potentially went past the target, so subtract those back out
@@ -80,7 +80,7 @@ impl RLEBlock {
     }
 
     #[inline]
-    pub fn insert_and_count(&mut self, position: usize, symbol: u8) -> usize {
+    pub fn insert_and_count(&mut self, position: u64, symbol: u8) -> u64 {
         //make sure we're inserting valid symbols into a valid position
         assert!(symbol < VC_LEN as u8);
         assert!(position <= self.values_contained);
@@ -90,8 +90,8 @@ impl RLEBlock {
         self.values_contained += 1;
 
         //we need to find the run we're going into
-        let mut pos_end: usize = 0;
-        let mut total_counts: [usize; VC_LEN+1] = [0; VC_LEN+1];
+        let mut pos_end: u64 = 0;
+        let mut total_counts: [u64; VC_LEN+1] = [0; VC_LEN+1];
         
         //now iterate
         let mut i: usize = 0;
@@ -100,8 +100,8 @@ impl RLEBlock {
         while pos_end < position {
             sym = self.runs[i].0;
             count = self.runs[i].1;
-            total_counts[sym as usize] += count as usize;
-            pos_end += count as usize;
+            total_counts[sym as usize] += count as u64;
+            pos_end += count as u64;
             i += 1;
         }
 
@@ -157,20 +157,20 @@ impl RLEBlock {
     pub fn split(&mut self) -> RLEBlock {
         //break right in the middle
         let breakpoint: usize = self.runs.len() / 2;
-        let mut new_block_counts: [usize; VC_LEN] = [0; VC_LEN];
-        let mut new_block_size: usize = 0;
+        let mut new_block_counts: [u64; VC_LEN] = [0; VC_LEN];
+        let mut new_block_size: u64 = 0;
         
         //drain from the breakpoint, counting the symbols as we go
         let new_runs_data: ArrayVec<(u8, u8), CAPACITY_BUFFER> = self.runs.drain(breakpoint..)
             .map(
                 |(sym, count)| {
-                    new_block_counts[sym as usize] += count as usize;
+                    new_block_counts[sym as usize] += count as u64;
                     (sym, count)
                 }
             ).collect();
 
         //count up the total also
-        new_block_size += new_block_counts.iter().sum::<usize>();
+        new_block_size += new_block_counts.iter().sum::<u64>();
 
         //build the block
         let ret: RLEBlock = RLEBlock {
@@ -189,7 +189,7 @@ impl RLEBlock {
 
     #[inline]
     pub fn to_vec(&self) -> Vec<u8> {
-        let mut ret: Vec<u8> = vec![0; self.values_contained];
+        let mut ret: Vec<u8> = vec![0; self.values_contained as usize];
         let mut ret_index: usize = 0;
         for &(curr_sym, count) in self.runs.iter() {
             ret[ret_index..ret_index+count as usize].fill(curr_sym);
@@ -358,9 +358,9 @@ mod tests {
         //semi-random collection test
         let mut block: RLEBlock = Default::default();
         let data: Vec<u8> = vec![0, 1, 1, 1, 2, 0, 2, 3, 4, 1, 1, 1, 0];
-        let expected_count: Vec<usize> = vec![0, 0, 1, 2, 0, 1, 1, 0, 0, 3, 4, 5, 2];
+        let expected_count: Vec<u64> = vec![0, 0, 1, 2, 0, 1, 1, 0, 0, 3, 4, 5, 2];
         for (i, v) in data.iter().enumerate() {
-            assert_eq!(block.insert_and_count(i, *v), expected_count[i]);
+            assert_eq!(block.insert_and_count(i as u64, *v), expected_count[i]);
         }
         assert_eq!(block.to_vec(), data);
     }
@@ -370,12 +370,12 @@ mod tests {
         let mut block: RLEBlock = Default::default();
         let mut data: Vec<u8> = vec![];
         let inserted: Vec<u8> = vec![4, 4, 4, 5, 2, 4, 4];
-        let positions: Vec<usize> = vec![0, 0, 1, 1, 4, 1, 5];
+        let positions: Vec<u64> = vec![0, 0, 1, 1, 4, 1, 5];
         for i in 0..inserted.len() {
-            data.insert(positions[i], inserted[i]);
+            data.insert(positions[i] as usize, inserted[i]);
             let mut expected_count = 0;
             for j in 0..positions[i] {
-                if data[j] == inserted[i] {
+                if data[j as usize] == inserted[i] {
                     expected_count += 1;
                 }
             }
