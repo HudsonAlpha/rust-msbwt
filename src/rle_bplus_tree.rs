@@ -95,14 +95,17 @@ impl RLEBPlusTree {
     /// * `value` - the symbol to count
     /// # Examples
     /// ```rust
-    /// use msbwt2::msbwt_core::BWT;
-    /// use msbwt2::dynamic_bwt::DynamicBWT;
-    /// use msbwt2::bwt_converter::convert_to_vec;
-    /// //strings "ACGT" and "CCGG"
-    /// let seq = "TG$$CAGCCG";
-    /// let vec = convert_to_vec(seq.as_bytes());
-    /// let mut bwt = DynamicBWT::new();
-    /// bwt.load_vector(vec);
+    /// use msbwt2::rle_bplus_tree::RLEBPlusTree;
+    /// let mut tree: RLEBPlusTree = Default::default();
+    /// let data: Vec<u8> =             vec![0, 1, 1, 1, 2, 0, 2, 3, 4, 1, 1, 1, 0];
+    /// let expected_counts: Vec<u64> = vec![0, 0, 1, 2, 0, 1, 1, 0, 0, 3, 4, 5, 2];
+    /// for (i, v) in data.iter().enumerate() {
+    ///     let pre_count = tree.count(i as u64, *v);
+    ///     assert_eq!(pre_count, expected_counts[i]);
+    ///     let count = tree.insert_and_count(i as u64, *v);
+    ///     println!("{} {:?}", i, tree.to_vec());
+    ///     assert_eq!(count, expected_counts[i]);
+    /// }
     /// ```
     #[inline]
     pub fn count(&self, index: u64, value: u8) -> u64 {
@@ -145,6 +148,25 @@ impl RLEBPlusTree {
         total_count
     }
 
+    /// Performs a rank/count operation while also inserting that symbol at the provided index.
+    /// For a given data index, this will count all occurences of symbol `value` up to that index, and then insert an addition `value` at that index.
+    /// # Arguments
+    /// * `index` - the index to count to 
+    /// * `value` - the symbol to count
+    /// # Examples
+    /// ```rust
+    /// use msbwt2::rle_bplus_tree::RLEBPlusTree;
+    /// let mut tree: RLEBPlusTree = Default::default();
+    /// let data: Vec<u8> =             vec![0, 1, 1, 1, 2, 0, 2, 3, 4, 1, 1, 1, 0];
+    /// let expected_counts: Vec<u64> = vec![0, 0, 1, 2, 0, 1, 1, 0, 0, 3, 4, 5, 2];
+    /// for (i, v) in data.iter().enumerate() {
+    ///     let pre_count = tree.count(i as u64, *v);
+    ///     assert_eq!(pre_count, expected_counts[i]);
+    ///     let count = tree.insert_and_count(i as u64, *v);
+    ///     println!("{} {:?}", i, tree.to_vec());
+    ///     assert_eq!(count, expected_counts[i]);
+    /// }
+    /// ```
     #[inline]
     pub fn insert_and_count(&mut self, index: u64, value: u8) -> u64{
         //start with root node 0
@@ -339,20 +361,22 @@ impl RLEBPlusTree {
         }
     }
 
+    /// This will convert the stored data into a plain Vec<u8> for easy manipulation.
+    /// This is really most useful for debugging and testing.
+    /// # Example
+    /// ```rust
+    /// use msbwt2::rle_bplus_tree::RLEBPlusTree;
+    /// let mut tree: RLEBPlusTree = Default::default();
+    /// let data: Vec<u8> =             vec![0, 1, 1, 1, 2, 0, 2, 3, 4, 1, 1, 1, 0];
+    /// let expected_counts: Vec<u64> = vec![0, 0, 1, 2, 0, 1, 1, 0, 0, 3, 4, 5, 2];
+    /// for (i, v) in data.iter().enumerate() {
+    ///     let _count = tree.insert_and_count(i as u64, *v);
+    /// }
+    /// assert_eq!(tree.to_vec(), data);
+    /// ```
     #[inline]
     pub fn to_vec(&self) -> Vec<u8> {
         let mut ret: Vec<u8> = vec![];
-        /*
-        let mut curr_child: usize = 0;
-        ret.extend_from_slice(&self.data_arena[curr_child].to_vec());
-        curr_child = self.next_child[curr_child];
-        while curr_child != 0 {
-            ret.extend_from_slice(&self.data_arena[curr_child].to_vec());
-            curr_child = self.next_child[curr_child];
-        }
-        ret
-        */
-        
         let mut level_vec: Vec<usize>;
         let mut next_level_vec: Vec<usize> = vec![0];
 
