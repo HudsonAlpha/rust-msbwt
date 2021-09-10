@@ -1,4 +1,6 @@
 
+use std::convert::TryInto;
+
 use crate::msbwt_core::*;
 
 use crate::run_block_av_flat::VC_LEN;
@@ -149,7 +151,46 @@ impl DynamicBWT {
 impl BWT for DynamicBWT {
     /// Initializes the BWT from a compressed BWT vector.
     fn load_vector(&mut self, bwt: Vec<u8>) {
-        panic!("NO IMPL");
+        //reset all of these 
+        self.tree_bwt = Default::default();
+        self.total_counts = [0; VC_LEN];
+        self.sort_query_len = INITIAL_QUERY as f64;
+        self.short_circuits = [0; 3];
+
+        //general strategy here is to build up the count of a character and then insert them
+        let mut prev_char: u8 = 255;
+        let mut current_char: u8;
+        let mut power_multiple: u64 = 1;
+        let mut current_count: u64;
+
+        //go through each compressed block in the RLE encoded vector to calculate total character counts
+        let mut current_index: usize = 0;
+        for value in bwt {
+            current_char = value & MASK;
+            if current_char == prev_char {
+                power_multiple *= NUM_POWER as u64;
+            }
+            else {
+                power_multiple = 1;
+            }
+            prev_char = current_char;
+            current_count = (value >> LETTER_BITS) as u64 * power_multiple;
+
+            for _ in 0..current_count {
+                let _dummy = self.tree_bwt.insert_and_count(current_index, current_char);
+                current_index += 1;
+            }
+
+            //add this to the total counts
+            self.total_counts[current_char as usize] += current_count as usize;
+        }
+
+        self.string_count = self.total_counts[0];
+        self.symbol_count = self.total_counts.iter().sum();
+        self.offsets = self.total_counts.iter().scan(0, |sum, &count| {
+            *sum += count;
+            Some(*sum - count)
+        }).collect::<Vec<usize>>().try_into().unwrap();
     }
 
     /// Initializes the BWT from the numpy file format for compressed BWTs
@@ -164,14 +205,12 @@ impl BWT for DynamicBWT {
 
     /// Returns the total number of occurences of a given symbol
     fn get_symbol_count(&self, symbol: u8) -> u64 {
-        panic!("NO IMPL");
-        0
+        self.total_counts[symbol as usize] as u64
     }
 
     /// This will return the total number of symbols contained by the BWT
     fn get_total_size(&self) -> u64 {
-        panic!("NO IMPL");
-        0
+        self.symbol_count as u64
     }
 
     /// Performs a range constraint on a BWT range. 
@@ -179,8 +218,10 @@ impl BWT for DynamicBWT {
     /// # Safety
     /// This function is unsafe because there are no guarantees that the symbol or bounds will be checked by the implementing structure.
     unsafe fn constrain_range(&self, sym: u8, input_range: &BWTRange) -> BWTRange {
-        panic!("NO IMPL");
-        Default::default()
+        BWTRange {
+            l: (self.offsets[sym as usize]+self.tree_bwt.count(input_range.l as usize, sym)) as u64,
+            h: (self.offsets[sym as usize]+self.tree_bwt.count(input_range.h as usize, sym)) as u64
+        }
     }
 }
 
@@ -289,7 +330,28 @@ mod tests {
     }
 
     #[test]
-    fn test_load_rlebwt_from_npy() {
+    fn test_load_dynamicbwt_from_vec() {
+        //strings - "CCGT\nACG\nN"
+        //build the BWT
+        let data: Vec<&str> = vec!["CCGT", "N", "ACG"];
+        
+        //stream and compress the BWT
+        //let bwt_stream = stream_bwt_from_fastqs(&fastq_filenames).unwrap();
+        let bwt_stream = naive_bwt(&data);
+        let compressed_bwt = convert_to_vec(bwt_stream.as_bytes());
+        
+        let mut bwt = DynamicBWT::new();
+        bwt.load_vector(compressed_bwt);
+
+        let expected_totals = vec![3, 1, 3, 2, 1, 1];
+        for i in 0..6 {
+            //make sure the total counts are correct
+            assert_eq!(bwt.get_symbol_count(i as u8), expected_totals[i]);
+        }
+    }
+
+    #[test]
+    fn test_load_dynamicbwt_from_npy() {
         //strings - "CCGT\nACG\nN"
         //build the BWT
         let data: Vec<&str> = vec!["CCGT", "N", "ACG"];
