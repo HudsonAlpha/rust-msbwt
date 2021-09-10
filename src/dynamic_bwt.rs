@@ -1,5 +1,10 @@
 
+extern crate log;
+
+use log::info;
 use std::convert::TryInto;
+use std::io::prelude::*;
+use std::fs;
 
 use crate::msbwt_core::*;
 
@@ -37,6 +42,8 @@ impl Default for DynamicBWT {
 impl BWT for DynamicBWT {
     /// Initializes the BWT from a compressed BWT vector.
     fn load_vector(&mut self, bwt: Vec<u8>) {
+        info!("Initializing BWT with {:?} compressed values...", bwt.len());
+
         //reset all of these 
         self.tree_bwt = Default::default();
         self.total_counts = [0; VC_LEN];
@@ -77,16 +84,85 @@ impl BWT for DynamicBWT {
             *sum += count;
             Some(*sum - count)
         }).collect::<Vec<u64>>().try_into().unwrap();
+        info!("Loaded BWT with symbol counts: {:?}", self.total_counts);
+        info!("Finished BWT initialization.")
     }
 
     /// Initializes the BWT from the numpy file format for compressed BWTs
     fn load_numpy_file(&mut self, filename: &str) -> std::io::Result<()> {
-        Err(
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("NO IMPL")
-            )
-        )
+        //read the numpy header: http://docs.scipy.org/doc/numpy-1.10.1/neps/npy-format.html
+        //get the initial file size
+        let file_metadata: fs::Metadata = fs::metadata(&filename)?;
+        let full_file_size: u64 = file_metadata.len();
+
+        //read the initial fixed header
+        let mut file = fs::File::open(&filename)?;
+        let mut init_header: Vec<u8> = vec![0; 10];
+        let read_count: usize = file.read(&mut init_header[..])?;
+        if read_count != 10 {
+            panic!("Could not read initial 10 bytes of header for file {:?}", filename);
+        }
+
+        //read the dynamic header
+        let header_len: usize = init_header[8] as usize + 256 * init_header[9] as usize;
+        let mut skip_bytes: usize = 10+header_len;
+        if skip_bytes % 16 != 0 {
+            skip_bytes = ((skip_bytes / 16)+1)*16;
+        }
+        let mut skip_header: Vec<u8> = vec![0; skip_bytes-10];
+        match file.read_exact(&mut skip_header[..]) {
+            Ok(()) => {},
+            Err(e) => {
+                return Err(
+                    std::io::Error::new(
+                        e.kind(),
+                        format!("Could not read bytes 10-{:?} of header for file {:?}, root-error {:?}", skip_bytes, filename, e)
+                    )
+                );
+            }
+        }
+        
+        //parse the header string for the expected length, requires a lot of manipulation of the string because of numpy header styling
+        let header_string = String::from_utf8(skip_header).unwrap()
+            .replace("\'", "\"")
+            .replace("False", "false")
+            .replace("(", "[")
+            .replace(")", "]")
+            .replace(", }", "}")
+            .replace(", ]", "]")
+            .replace(",]", "]");
+        let header_dict: serde_json::Value = serde_json::from_str(&header_string)
+            .unwrap_or_else(|_| panic!("Error while parsing header string: {:?}", header_string));
+        let expected_length: u64 = header_dict["shape"][0].as_u64().unwrap();
+        
+        //check that the disk size matches our expectation
+        let bwt_disk_size: u64 = full_file_size - skip_bytes as u64;
+        if expected_length != bwt_disk_size {
+            return Err(
+                std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    format!("Header indicates shape of {:?}, but remaining file size is {:?}", expected_length, bwt_disk_size)
+                )
+            );
+        }
+
+        //finally read in everything else
+        info!("Loading BWT with {:?} compressed values from disk...", bwt_disk_size);
+        let mut bwt_data: Vec<u8> = Vec::<u8>::with_capacity(bwt_disk_size as usize);
+        let read_count: usize = file.read_to_end(&mut bwt_data)?;
+        if read_count as u64 != bwt_disk_size {
+            return Err(
+                std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    format!("Only read {:?} of {:?} bytes of BWT body for file {:?}", read_count, bwt_disk_size, filename)
+                )
+            );
+        }
+        
+        //we loaded the file into memory, now just do the load from vec
+        self.load_vector(bwt_data);
+
+        Ok(())
     }
 
     /// Returns the total number of occurences of a given symbol
@@ -382,7 +458,6 @@ mod tests {
         let data: Vec<&str> = vec!["CCGT", "N", "ACG"];
         
         //stream and compress the BWT
-        //let bwt_stream = stream_bwt_from_fastqs(&fastq_filenames).unwrap();
         let bwt_stream = naive_bwt(&data);
         assert_eq!(bwt_stream, "GTN$$ACCC$G");
         let bwt_int_form = string_util::convert_stoi(&bwt_stream);
@@ -457,7 +532,6 @@ mod tests {
         let data: Vec<&str> = vec!["CCGTACGTA", "GGTACAGTA", "ACGACGACG"];
         
         //stream and compress the BWT
-        //let bwt_stream = stream_bwt_from_fastqs(&fastq_filenames).unwrap();
         let bwt_stream = naive_bwt(&data);
         let compressed_bwt = convert_to_vec(bwt_stream.as_bytes());
         
@@ -481,5 +555,47 @@ mod tests {
         assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"ACG")), 4);
         assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"CC")), 1);
         assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"TAC")), 2);
+    }
+
+    #[test]
+    fn test_load_and_add() {
+        //strings - "CCGT\nACG\nN"
+        //build the BWT
+        let mut data: Vec<&str> = vec!["CCGTACGTA", "GGTACAGTA", "ACGACGACG"];
+        
+        //stream and compress the BWT
+        //let bwt_stream = stream_bwt_from_fastqs(&fastq_filenames).unwrap();
+        let bwt_stream = naive_bwt(&data);
+        let compressed_bwt = convert_to_vec(bwt_stream.as_bytes());
+        
+        //load it back in and verify counts
+        let mut bwt: DynamicBWT = Default::default();
+        bwt.load_vector(compressed_bwt.clone());
+
+        // now lets add a new string
+        let new_string = "AAGTCATAT";
+        bwt.insert_string(&new_string, true);
+        data.push(new_string);
+
+        //simple sanity checks, make sure our single-character symbols matches the total count
+        for c in 0..VC_LEN as u8 {
+            let test_seq: Vec<u8> = vec![c];
+            assert_eq!(bwt.get_symbol_count(c), bwt.count_kmer(&test_seq));
+        }
+        
+        //check that each string shows up once
+        for seq in data.iter() {
+            let test_seq = string_util::convert_stoi(seq);
+            assert_eq!(bwt.count_kmer(&test_seq), 1);
+        }
+
+        //now lets check some semi-arbitrary substrings
+        assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"ACG")), 4);
+        assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"CC")), 1);
+        assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"TAC")), 2);
+
+        //these should have changed with the new string
+        assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"AA")), 1);
+        assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"GT")), 5);
     }
 }
