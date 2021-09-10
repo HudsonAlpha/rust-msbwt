@@ -12,16 +12,30 @@ use crate::run_block_av_flat::VC_LEN;
 use crate::rle_bplus_tree::RLEBPlusTree;
 use crate::string_util::convert_stoi;
 
+/// The inital k-mer size used for short circuiting
 const INITIAL_QUERY: usize = 10;
+/// A factor that influences how fast the query size will change
 const COST_FACTOR: f64 = 0.000001;
 
+/// A BWT type built on top of a B+ tree that allows for new strings to be added via a function.
+/// This is most useful for directly building a BWT from scratch or for adding to an existing BWT with additional logic.
+/// It attempts to short circuit the calculation of the insertion point for sorted strings, but will fall back to a full query if that fails.
 pub struct DynamicBWT {
+    /// The actual B+ tree structure
     tree_bwt: RLEBPlusTree,
+    /// The total number of each symbol captured by the BWT
     symbol_counts: [u64; VC_LEN],
+    /// The start index of each symbol ($ is always 0)
     start_index: [u64; VC_LEN],
+    /// The total number of strings in the BWT
     string_count: u64,
+    /// The total number of symbols in the BWT
     total_count: u64,
+    /// This determines how many bases to query when inserting sorted strings to attempt to short-circuit.
+    /// This number is dynamically adjusted based on the success/failure of short-circuiting strings while inserting.
     sort_query_len: f64,
+    /// A simple helper array for storing the number of [successful short circuits, impossible short circuits (i.e. identical strings), and failed short circuits].
+    /// This is a semi-frequent output while inserting strings.
     short_circuits: [usize; 3],
 }
 
@@ -254,16 +268,19 @@ impl DynamicBWT {
         Default::default()
     }
 
+    /// This will return the array of symbol counts contained within the BWT
     #[inline]
     pub fn get_symbol_counts(&self) -> [u64; VC_LEN] {
         self.symbol_counts
     }
 
+    /// This will return the current height of the B+ tree storing the data
     #[inline]
     pub fn get_height(&self) -> usize {
         self.tree_bwt.get_height()
     }
 
+    /// This will return the total number of data nodes in the B+ tree
     #[inline]
     pub fn get_node_count(&self) -> usize {
         self.tree_bwt.get_node_count()
@@ -356,7 +373,7 @@ impl DynamicBWT {
         self.string_count += 1;
 
         if self.string_count % 10000 == 0 {
-            println!("{} {:?} {}", self.string_count, self.short_circuits, self.sort_query_len);
+            info!("String count: {}\t[Success, duplicates, fail]: {:?}\tCurrent short-circuit length: {}", self.string_count, self.short_circuits, self.sort_query_len);
             self.short_circuits = [0; 3];
         }
     }
