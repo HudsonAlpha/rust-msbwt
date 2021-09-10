@@ -1,6 +1,6 @@
 
 /// contains ASCII to integer encoding
-const STRING_TO_INT: [u8; 256] = build_stoi();
+pub const STRING_TO_INT: [u8; 256] = build_stoi();
 
 /// contains integer to ASCII encoding
 const INT_TO_STRING: [u8; 6] = [
