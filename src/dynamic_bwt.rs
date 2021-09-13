@@ -390,11 +390,26 @@ impl DynamicBWT {
     /// ubwt.insert_string(&data, false);
     /// assert_eq!(ubwt.to_vec(), bwt);
     /// ```
-    #[inline]
     pub fn to_vec(&self) -> Vec<u8> {
         self.tree_bwt.to_vec()
     }
 
+    /// This will return an iterator over the symbols in the BWT in their number format (e.g. 0-5).
+    /// # Examples
+    /// ```rust
+    /// use msbwt2::dynamic_bwt::{create_from_fastx,DynamicBWT};
+    /// use msbwt2::msbwt_core::BWT;
+    /// use msbwt2::string_util;
+    /// let npy_result: String = "test_data/two_string.npy".to_string();
+    /// let mut truth_bwt: DynamicBWT = Default::default();
+    /// truth_bwt.load_numpy_file(&npy_result);
+    /// let single_file = vec!["./test_data/two_string.fa"];
+    /// let bwt: DynamicBWT = create_from_fastx(&single_file, true).unwrap();
+    /// assert_eq!(truth_bwt.to_vec(), bwt.iter().collect::<Vec<u8>>());
+    /// for sym in bwt.iter() {
+    ///     print!("{}", sym);
+    /// }
+    /// ```
     pub fn iter(&self) -> impl Iterator<Item = u8> + '_ {
         self.tree_bwt.into_iter()
     }
@@ -752,11 +767,12 @@ mod tests {
         //two string test
         let npy_result: String = "test_data/two_string.npy".to_string();
         let mut truth_bwt: DynamicBWT = Default::default();
-        truth_bwt.load_numpy_file(&npy_result);
+        truth_bwt.load_numpy_file(&npy_result).unwrap();
         
         let single_file = vec!["./test_data/two_string.fa"];
         let bwt: DynamicBWT = create_from_fastx(&single_file, true).unwrap();
         assert_eq!(truth_bwt.to_vec(), bwt.to_vec());
+        assert_eq!(truth_bwt.iter().collect::<Vec<u8>>(), bwt.iter().collect::<Vec<u8>>());
         assert_eq!(truth_bwt.count_kmer(&string_util::convert_stoi(&"$")), 2);
         assert_eq!(truth_bwt.count_kmer(&string_util::convert_stoi(&"ACGT")), 1);
         assert_eq!(truth_bwt.count_kmer(&string_util::convert_stoi(&"TGCA")), 1);
