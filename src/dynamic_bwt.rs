@@ -2,6 +2,7 @@
 extern crate log;
 
 use log::info;
+use needletail::{parse_fastx_file,Sequence};
 use std::convert::TryInto;
 use std::io::prelude::*;
 use std::fs;
@@ -395,6 +396,50 @@ impl DynamicBWT {
     }
 }
 
+
+/// This will create a BWT from a list of FASTX files and return that BWT upon completion.
+/// # Arguments 
+/// * `filenames` - a list of filenames to be parsed, fastq, fasta, and gzipped versions of each are supported
+/// * `sorted` - if True, strings will be added in lexicographic (e.g. sorted) order, otherwise they will be inserted chronologically (e.g. the order in the file)
+/// # Examples
+/// ```rust
+/// use msbwt2::dynamic_bwt::{create_from_fastx,DynamicBWT};
+/// use msbwt2::msbwt_core::BWT;
+/// use msbwt2::string_util;
+/// let npy_result: String = "test_data/two_string.npy".to_string();
+/// let mut truth_bwt: DynamicBWT = Default::default();
+/// truth_bwt.load_numpy_file(&npy_result);
+/// let single_file = vec!["./test_data/two_string.fa"];
+/// let bwt: DynamicBWT = create_from_fastx(&single_file, true).unwrap();
+/// assert_eq!(truth_bwt.to_vec(), bwt.to_vec());
+/// assert_eq!(truth_bwt.count_kmer(&string_util::convert_stoi(&"$")), 2);
+/// assert_eq!(truth_bwt.count_kmer(&string_util::convert_stoi(&"ACGT")), 1);
+/// assert_eq!(truth_bwt.count_kmer(&string_util::convert_stoi(&"TGCA")), 1);
+/// ```
+pub fn create_from_fastx<T: std::convert::AsRef<std::path::Path> + std::fmt::Debug>(filenames: &[T], sorted: bool) -> Result<DynamicBWT, Box<dyn std::error::Error>> {
+    let mut bwt: DynamicBWT = Default::default();
+    for filename in filenames {
+        let mut reader = parse_fastx_file(&filename)?;
+
+        //go through all the records
+        let mut count: usize = 0;
+        info!("Loading file \"{:?}\"...", filename);
+        while let Some(record) = reader.next() {
+            //all we care about is the sequence length
+            let seq_rec = record?;
+            let norm_seq = seq_rec.normalize(false);
+            bwt.insert_string(std::str::from_utf8(norm_seq.as_ref()).unwrap(), sorted);
+            
+            count += 1;
+            if count % 1000000 == 0 {
+                info!("Processed {} sequences", count);
+            }
+        }
+        info!("Finished loading file with {} sequences.", count);
+    }
+    Ok(bwt)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -693,5 +738,25 @@ mod tests {
         //these should have changed with the new string
         assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"AA")), 1);
         assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"GT")), 5);
+    }
+
+    #[test]
+    fn test_create_from_fastx() {
+        //empty test
+        let empty_file_list: Vec<String> = Default::default();
+        let bwt: DynamicBWT = create_from_fastx(&empty_file_list, true).unwrap();
+        assert_eq!(bwt.to_vec(), Vec::<u8>::new());
+
+        //two string test
+        let npy_result: String = "test_data/two_string.npy".to_string();
+        let mut truth_bwt: DynamicBWT = Default::default();
+        truth_bwt.load_numpy_file(&npy_result);
+        
+        let single_file = vec!["./test_data/two_string.fa"];
+        let bwt: DynamicBWT = create_from_fastx(&single_file, true).unwrap();
+        assert_eq!(truth_bwt.to_vec(), bwt.to_vec());
+        assert_eq!(truth_bwt.count_kmer(&string_util::convert_stoi(&"$")), 2);
+        assert_eq!(truth_bwt.count_kmer(&string_util::convert_stoi(&"ACGT")), 1);
+        assert_eq!(truth_bwt.count_kmer(&string_util::convert_stoi(&"TGCA")), 1);
     }
 }
