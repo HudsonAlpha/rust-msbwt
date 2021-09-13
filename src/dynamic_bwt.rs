@@ -375,7 +375,7 @@ impl DynamicBWT {
         self.string_count += 1;
 
         if self.string_count % 10000 == 0 {
-            info!("String count: {}\t[Success, duplicates, fail]: {:?}\tCurrent short-circuit length: {}", self.string_count, self.short_circuits, self.sort_query_len);
+            info!("Strings: {}\tShort-k: {:.2}\t[pass, dup, fail]: {:?}", self.string_count, self.sort_query_len, self.short_circuits);
             self.short_circuits = [0; 3];
         }
     }
@@ -393,6 +393,10 @@ impl DynamicBWT {
     #[inline]
     pub fn to_vec(&self) -> Vec<u8> {
         self.tree_bwt.to_vec()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = u8> + '_ {
+        self.tree_bwt.into_iter()
     }
 }
 
@@ -416,27 +420,25 @@ impl DynamicBWT {
 /// assert_eq!(truth_bwt.count_kmer(&string_util::convert_stoi(&"ACGT")), 1);
 /// assert_eq!(truth_bwt.count_kmer(&string_util::convert_stoi(&"TGCA")), 1);
 /// ```
-pub fn create_from_fastx<T: std::convert::AsRef<std::path::Path> + std::fmt::Debug>(filenames: &[T], sorted: bool) -> Result<DynamicBWT, Box<dyn std::error::Error>> {
+pub fn create_from_fastx<T: std::convert::AsRef<std::path::Path> + std::fmt::Display>(filenames: &[T], sorted: bool) -> Result<DynamicBWT, Box<dyn std::error::Error>> {
     let mut bwt: DynamicBWT = Default::default();
+    info!("Creating BWT from FASTX files...");
     for filename in filenames {
         let mut reader = parse_fastx_file(&filename)?;
 
         //go through all the records
-        let mut count: usize = 0;
-        info!("Loading file \"{:?}\"...", filename);
+        let initial_string_count = bwt.get_symbol_count(0);
+        info!("Loading file \"{}\"...", filename);
         while let Some(record) = reader.next() {
             //all we care about is the sequence length
             let seq_rec = record?;
             let norm_seq = seq_rec.normalize(false);
             bwt.insert_string(std::str::from_utf8(norm_seq.as_ref()).unwrap(), sorted);
-            
-            count += 1;
-            if count % 1000000 == 0 {
-                info!("Processed {} sequences", count);
-            }
         }
+        let count = bwt.get_symbol_count(0) - initial_string_count;
         info!("Finished loading file with {} sequences.", count);
     }
+    info!("Finished creating BWT, symbol counts: {:?}", bwt.get_symbol_counts());
     Ok(bwt)
 }
 
