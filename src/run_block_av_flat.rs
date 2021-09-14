@@ -242,6 +242,10 @@ impl RLEBlock {
         }
         ret
     }
+
+    pub fn raw_iter(&self) -> std::slice::Iter<(u8, u8)> {
+        self.runs.iter()
+    }
 }
 
 #[cfg(test)]
@@ -252,6 +256,7 @@ mod tests {
     fn test_init() {
         let block: RLEBlock = Default::default();
         assert_eq!(block.runs.to_vec(), vec![]);
+        assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), vec![]);
         for symbol in 0..VC_LEN {
             assert_eq!(0, block.count(0, symbol as u8));
         }
@@ -277,7 +282,9 @@ mod tests {
             assert_eq!(block.count(0, 2), 0);
             assert_eq!(block.insert_and_count(0, 2), 0);
         }
-        assert_eq!(block.runs.to_vec(), vec![(2, 255), (0, 129), (0, 128), (1, 128), (1, 128)])
+        let correct_data = vec![(2, 255), (0, 129), (0, 128), (1, 128), (1, 128)];
+        assert_eq!(block.runs.to_vec(), correct_data);
+        assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), correct_data);
     }
     
     #[test]
@@ -290,7 +297,10 @@ mod tests {
         }
         assert_eq!(block.count(128, 1), 0);
         assert_eq!(block.insert_and_count(128, 1), 0);
-        assert_eq!(block.runs.to_vec(), vec![(0, 128), (1, 1), (0, 127)]);
+
+        let correct_data = vec![(0, 128), (1, 1), (0, 127)];
+        assert_eq!(block.runs.to_vec(), correct_data);
+        assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), correct_data);
     }
     
     #[test]
@@ -301,7 +311,10 @@ mod tests {
         for _ in 0..256 {
             block.increment_run(0);
         }
-        assert_eq!(block.runs.to_vec(), vec![(0, 129), (0, 128)]);
+
+        let correct_data = vec![(0, 129), (0, 128)];
+        assert_eq!(block.runs.to_vec(), correct_data);
+        assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), correct_data);
     }
 
     #[test]
