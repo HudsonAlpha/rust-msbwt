@@ -374,7 +374,6 @@ impl RLEBPlusTree {
     /// }
     /// assert_eq!(tree.to_vec(), data);
     /// ```
-    #[inline]
     pub fn to_vec(&self) -> Vec<u8> {
         let mut ret: Vec<u8> = vec![];
         let mut level_vec: Vec<usize>;
@@ -405,7 +404,19 @@ impl RLEBPlusTree {
         //self.into_iter().collect()
     }
 
-    pub fn run_iter<'a>(&'a self) -> RLEBPlusTreeRunIterator<'a> {
+    /// This will return a run iterator over the data stored in the tree.
+    /// # Example
+    /// ```rust
+    /// use msbwt2::rle_bplus_tree::RLEBPlusTree;
+    /// let mut tree: RLEBPlusTree = Default::default();
+    /// let data: Vec<u8> =  vec![0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 0];
+    /// for (i, v) in data.iter().enumerate() {
+    ///     let _count = tree.insert_and_count(i as u64, *v);
+    /// }
+    /// let expected_runs: Vec<(u8, u64)> = vec![(0, 1), (1, 3), (2, 6), (0, 1)];
+    /// assert_eq!(tree.run_iter().collect::<Vec<(u8, u64)>>(), expected_runs);
+    /// ```
+    pub fn run_iter(&self) -> RLEBPlusTreeRunIterator<'_> {
         let next_child_index = self.next_child[0];
         let current_block_iter = self.data_arena[0].raw_iter();
         RLEBPlusTreeRunIterator {
@@ -464,7 +475,7 @@ pub struct RLEBPlusTreeRunIterator<'a> {
 
 impl<'a> Iterator for RLEBPlusTreeRunIterator<'a> {
     type Item = (u8, u64);
-    /// Will return the next symbol contained by the compressed B+ tree data
+    /// Will return the next run contained by the compressed B+ tree data
     fn next(&mut self) -> Option<(u8, u64)> {
         loop {
             let next_pair = match self.current_block_iter.next() {

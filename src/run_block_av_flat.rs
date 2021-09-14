@@ -232,7 +232,7 @@ impl RLEBlock {
         ret
     }
 
-    #[inline]
+    /// Returns a vector representation of the contained data, one symbol per entry
     pub fn to_vec(&self) -> Vec<u8> {
         let mut ret: Vec<u8> = vec![0; self.values_contained as usize];
         let mut ret_index: usize = 0;
@@ -243,6 +243,7 @@ impl RLEBlock {
         ret
     }
 
+    /// Returns the raw data iterator, one (u8, u8) run block per entry
     pub fn raw_iter(&self) -> std::slice::Iter<(u8, u8)> {
         self.runs.iter()
     }
