@@ -404,6 +404,18 @@ impl RLEBPlusTree {
         */
         //self.into_iter().collect()
     }
+
+    pub fn run_iter<'a>(&'a self) -> RLEBPlusTreeRunIterator<'a> {
+        let next_child_index = self.next_child[0];
+        let current_block_iter = self.data_arena[0].raw_iter();
+        RLEBPlusTreeRunIterator {
+            tree: self,
+            next_child_index,
+            current_block_iter,
+            next_sym: 0,
+            next_count: 0
+        }
+    }
 }
 
 /// An iterator over the data nodes of the B+ tree that will perform an in-order traversal of the contained characters.
@@ -440,6 +452,74 @@ impl<'a> Iterator for RLEBPlusTreeIterator<'a> {
     }
 }
 
+/// An iterator over the data nodes of the B+ tree that will perform an in-order traversal of the contained characters.
+/// Each run is returned as a tuple (symbol (u8), count (u64)) instead of an individual symbol at a time.
+pub struct RLEBPlusTreeRunIterator<'a> {
+    tree: &'a RLEBPlusTree,
+    next_child_index: usize,
+    current_block_iter: std::slice::Iter<'a, (u8, u8)>,
+    next_sym: u8,
+    next_count: u64
+}
+
+impl<'a> Iterator for RLEBPlusTreeRunIterator<'a> {
+    type Item = (u8, u64);
+    /// Will return the next symbol contained by the compressed B+ tree data
+    fn next(&mut self) -> Option<(u8, u64)> {
+        loop {
+            let next_pair = match self.current_block_iter.next() {
+                //current block has data, so return it
+                Some(x) => Some(x),
+                None => {
+                    //current block does not have data
+                    if self.next_child_index == 0 {
+                        //no more blocks left (we've circled around), so no more data
+                        None
+                    } else {
+                        //get the next block iterator and update the next child index before returning a value
+                        self.current_block_iter = self.tree.data_arena[self.next_child_index].raw_iter();
+                        self.next_child_index = self.tree.next_child[self.next_child_index];
+
+                        //this *should* always work given our current setup, there shouldn't be any empty
+                        //blocks unless the entire tree is empty
+                        self.current_block_iter.next()
+                    }
+                }
+            };
+
+            match next_pair {
+                Some(&pair_values) => {
+                    //check if this run matches the ongoing run
+                    if pair_values.0 == self.next_sym {
+                        //part of the same run, increment and loop back
+                        self.next_count += pair_values.1 as u64;
+                    } else {
+                        //not part of the same run, store the new run values and return the current one
+                        let ret_value = (self.next_sym, self.next_count);
+                        self.next_sym = pair_values.0;
+                        self.next_count = pair_values.1 as u64;
+                        if ret_value.1 > 0 {
+                            return Some(ret_value);
+                        }
+                    }
+                },
+                None => {
+                    //we're at the end of the iterators
+                    if self.next_count > 0 {
+                        //one last pair to send
+                        let ret_value = (self.next_sym, self.next_count);
+                        self.next_count = 0;
+                        return Some(ret_value);
+                    } else {
+                        //nothing remains
+                        return None;
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     extern crate rand;
@@ -451,6 +531,8 @@ mod tests {
         let tree: RLEBPlusTree = Default::default();
         assert_eq!(tree.to_vec(), Vec::<u8>::new());
         assert_eq!(tree.into_iter().collect::<Vec<u8>>(), Vec::<u8>::new());
+        let full_pairing = tree.run_iter().collect::<Vec<(u8, u64)>>();
+        assert_eq!(full_pairing, vec![]);
     }
 
     #[test]
@@ -468,6 +550,11 @@ mod tests {
         }
         assert_eq!(tree.to_vec(), data);
         assert_eq!(tree.into_iter().collect::<Vec<u8>>(), data);
+
+        //check the pairs since this is in-order
+        let runs: Vec<(u8, u64)> = vec![(0, 1), (1, 3), (2, 1), (0, 1), (2, 1), (3, 1), (4, 1), (1, 3), (0, 1)];
+        let full_pairing = tree.run_iter().collect::<Vec<(u8, u64)>>();
+        assert_eq!(full_pairing, runs);
     }
 
     #[test]
@@ -485,6 +572,11 @@ mod tests {
             assert_eq!(count, expected_counts[i]);
         }
         assert_eq!(tree.to_vec(), data);
+        
+        //check the pairs since this is in-order
+        let runs: Vec<(u8, u64)> = vec![(3, 1), (0, 1), (3, 1), (0, 1), (5, 1), (2, 1), (5, 1), (2, 1), (3, 1), (1, 1), (2, 1)];
+        let full_pairing = tree.run_iter().collect::<Vec<(u8, u64)>>();
+        assert_eq!(full_pairing, runs);
     }
 
     #[test]
@@ -570,5 +662,20 @@ mod tests {
             assert_eq!(tree.to_vec(), data);
             assert_eq!(tree.into_iter().collect::<Vec<u8>>(), data);
         }
+    }
+
+    #[test]
+    fn test_run_iter() {
+        //this test is needed to make sure we are testing the run iterations across data blocks
+        let mut tree: RLEBPlusTree = Default::default();
+        let total_symbols = MAX_BLOCK_SIZE*256*MAX_NODE_SIZE;
+        for _ in 0..total_symbols {
+            let _post_count = tree.insert_and_count(0, 0);
+        }
+
+        //we expect 1 really big run of 0s
+        let full_pairing = tree.run_iter().collect::<Vec<(u8, u64)>>();
+        assert_eq!(full_pairing, vec![(0, total_symbols as u64)]);
+        assert!(tree.get_node_count() > 1);
     }
 }
