@@ -86,8 +86,6 @@ fn main() {
             std::process::exit(exitcode::IOERR);
         }
     };
-
-    //TODO: the work, see above for example IO errors
     
     //this is what we should put in the file
     if out_fn == "stdout" {
