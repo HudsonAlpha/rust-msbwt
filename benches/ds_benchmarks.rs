@@ -5,18 +5,19 @@ use msbwt2::rle_bplus_tree::RLEBPlusTree;
 use msbwt2::run_block_av_flat::RLEBlock;
 use rand::Rng;
 use rand::rngs::StdRng;
-use rand_core::SeedableRng;
+use rand::SeedableRng;
+//use rand_core::SeedableRng;
 
-fn get_random_insert(length: usize) -> (Vec<usize>, Vec<u8>) {
+fn get_random_insert(length: usize) -> (Vec<u64>, Vec<u8>) {
     //this is how to provide a constant "random" set of inserts to play with
     let mut rng = StdRng::seed_from_u64(0);
 
     //get random symbols AND positions into the array
     let mut inserted: Vec<u8> = vec![];
-    let mut positions: Vec<usize> = vec![];
+    let mut positions: Vec<u64> = vec![];
     for i in 0..length {
         let symbol: u8 = rng.gen_range(0, 6);
-        let position: usize = rng.gen_range(0, i+1);
+        let position: u64 = rng.gen_range(0, i+1) as u64;
         inserted.push(symbol);
         positions.push(position);    
     }
@@ -24,9 +25,9 @@ fn get_random_insert(length: usize) -> (Vec<usize>, Vec<u8>) {
 }
 
 // should have 4 length blocks + 3 single-character runs
-fn get_constant_insert() -> (Vec<usize>, Vec<u8>) {
+fn get_constant_insert() -> (Vec<u64>, Vec<u8>) {
     let mut inserted: Vec<u8> = vec![0; 1000];
-    let mut positions: Vec<usize> = vec![0; 1000];
+    let mut positions: Vec<u64> = vec![0; 1000];
 
     inserted.push(1);
     positions.push(500);
