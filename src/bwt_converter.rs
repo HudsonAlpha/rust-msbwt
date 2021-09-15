@@ -85,6 +85,20 @@ pub fn convert_to_vec(bwt: impl Read) -> Vec<u8> {
 /// # Arguments
 /// * `bwt` - a data type implementing Read that represents the compressed BWT
 /// * `filename` - the filename to save the output to
+/// # Example
+/// ```rust
+/// use msbwt2::bwt_converter::{convert_to_vec,save_bwt_numpy};
+/// use msbwt2::dynamic_bwt::DynamicBWT;
+/// use msbwt2::msbwt_core::BWT;
+/// //this is the BWT string from somewhere
+/// let bwt_string: String = "ACGT$".to_string();
+/// let bwt_vec = convert_to_vec(bwt_string.as_bytes());
+/// let filename: String = "./test_data/example_output_001.npy".to_string();
+/// save_bwt_numpy(&bwt_vec[..], &filename).unwrap();
+/// let mut bwt: DynamicBWT = Default::default();
+/// bwt.load_numpy_file(&filename).unwrap();
+/// assert_eq!(bwt.get_symbol_counts(), [1, 1, 1, 1, 0, 1]);
+/// ```
 pub fn save_bwt_numpy(bwt: impl Read, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let npy_file: File = File::create(filename)?;
     let mut buffer = BufWriter::new(npy_file);
@@ -121,6 +135,19 @@ pub fn save_bwt_numpy(bwt: impl Read, filename: &str) -> Result<(), Box<dyn std:
 /// # Arguments
 /// * `runs` - the runs iterator in format (symbol, count); it is assumed that no consecutive runs share the same symbol
 /// * `filename` - the filename to save the output to
+/// # Example
+/// ```rust
+/// use msbwt2::bwt_converter::save_bwt_runs_numpy;
+/// use msbwt2::dynamic_bwt::DynamicBWT;
+/// use msbwt2::msbwt_core::BWT;
+/// let mut initial_bwt: DynamicBWT = Default::default();
+/// initial_bwt.insert_string(&"AACC", true);
+/// let filename: String = "./test_data/example_output_002.npy".to_string();
+/// save_bwt_runs_numpy(initial_bwt.run_iter(), &filename).unwrap();
+/// let mut bwt: DynamicBWT = Default::default();
+/// bwt.load_numpy_file(&filename).unwrap();
+/// assert_eq!(bwt.get_symbol_counts(), [1, 2, 2, 0, 0, 0]);
+/// ```
 pub fn save_bwt_runs_numpy(runs: impl Iterator<Item = (u8, u64)>, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let npy_file: File = File::create(filename)?;
     let mut buffer = BufWriter::new(npy_file);
