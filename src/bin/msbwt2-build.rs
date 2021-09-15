@@ -8,6 +8,7 @@ use clap::{App, Arg, value_t, values_t};
 use log::{error, info};
 use std::fs::File;
 
+use msbwt2::bwt_converter::save_bwt_runs_numpy;
 use msbwt2::dynamic_bwt::{create_from_fastx,DynamicBWT};
 use msbwt2::string_util::INT_TO_STRING;
 
@@ -97,18 +98,14 @@ fn main() {
     }
     else {
         info!("Saving results to file: {:?}", out_fn);
-        panic!("no impl")
-        /*
-        let out_file = match File::create(&out_fn) {
-            Ok(file) => file,
+        match save_bwt_runs_numpy(bwt.run_iter(), &out_fn) {
+            Ok(_) => {},
             Err(e) => {
-                error!("Failed to create output JSON file: {:?}", out_fn);
+                error!("Error saving BWT to file: {:?}", out_fn);
                 error!("Error: {:?}", e);
-                std::process::exit(exitcode::CANTCREAT);
+                std::process::exit(exitcode::IOERR);
             }
         };
-        serde_json::to_writer_pretty(out_file, &length_metrics).unwrap();
-        */
     }
 
     info!("Processes successfully finished.")
