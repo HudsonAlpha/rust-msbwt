@@ -688,5 +688,11 @@ mod tests {
         let full_pairing = tree.run_iter().collect::<Vec<(u8, u64)>>();
         assert_eq!(full_pairing, vec![(0, total_symbols as u64)]);
         assert!(tree.get_node_count() > 1);
+
+        //now let's break the run somewhere and just make sure things are still fine
+        let break_point: u64 = (MAX_BLOCK_SIZE*256) as u64;
+        tree.insert_and_count(break_point, 1);
+        let full_pairing = tree.run_iter().collect::<Vec<(u8, u64)>>();
+        assert_eq!(full_pairing, vec![(0, break_point), (1, 1), (0, total_symbols as u64-break_point)]);
     }
 }
