@@ -88,8 +88,12 @@ pub fn convert_to_vec(bwt: impl Read) -> Vec<u8> {
 pub fn save_bwt_numpy(bwt: impl Read, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let npy_file: File = File::create(filename)?;
     let mut buffer = BufWriter::new(npy_file);
+    
+    //fill out a place-holder header block
     buffer.write_all(&[32; 95])?;
     buffer.write_all(&[10; 1])?;
+    
+    //fill in the core data
     let mut num_bytes: u64 = 0;
     for c in bwt.bytes() {
         buffer.write_all(&[c?])?;
@@ -97,6 +101,48 @@ pub fn save_bwt_numpy(bwt: impl Read, filename: &str) -> Result<(), Box<dyn std:
     }
     buffer.flush()?;
 
+    //re-add the header on the backend
+    let header_string = b"\x93NUMPY\x01\x00\x56\x00{\'descr\': \'|u1\', \'fortran_order\': False, \'shape\': (";
+    let header_tail = b", ), }"; //added a space after ',' here, so slightly different but functionally identical
+    let mut npy_file: File = OpenOptions::new().write(true).open(filename)?;
+
+    //header format - "header_string" -> length of data -> "header_tail"
+    npy_file.write_all(header_string)?;
+    npy_file.write_all(num_bytes.to_string().as_bytes())?;
+    npy_file.write_all(header_tail)?;
+    npy_file.flush()?;
+    
+    Ok(())
+}
+
+/// This will take some run iterator and save it to a file in numpy format. 
+/// This primarily compresses the runs further and then adds a numpy data type and shape fields that occupies the first 96 bytes of the file.
+/// The intended use is to pass in a BWT iterator to save, but really any run iterator can be stored this way.
+/// # Arguments
+/// * `runs` - the runs iterator in format (symbol, count); it is assumed that no consecutive runs share the same symbol
+/// * `filename` - the filename to save the output to
+pub fn save_bwt_runs_numpy(runs: impl Iterator<Item = (u8, u64)>, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let npy_file: File = File::create(filename)?;
+    let mut buffer = BufWriter::new(npy_file);
+    
+    //fill out a place-holder header block
+    buffer.write_all(&[32; 95])?;
+    buffer.write_all(&[10; 1])?;
+    
+    //fill in the core data
+    let mut num_bytes: u64 = 0;
+    for (symbol, count) in runs {
+        let mut curr_count = count;
+        while curr_count > 0 {
+            let write_byte: u8 = symbol | ((curr_count as u8 & COUNT_MASK) << LETTER_BITS) as u8;
+            buffer.write_all(&[write_byte])?;
+            curr_count >>= NUMBER_BITS;
+            num_bytes += 1;
+        }
+    }
+    buffer.flush()?;
+
+    //re-add the header on the backend
     let header_string = b"\x93NUMPY\x01\x00\x56\x00{\'descr\': \'|u1\', \'fortran_order\': False, \'shape\': (";
     let header_tail = b", ), }"; //added a space after ',' here, so slightly different but functionally identical
     let mut npy_file: File = OpenOptions::new().write(true).open(filename)?;
@@ -114,6 +160,7 @@ pub fn save_bwt_numpy(bwt: impl Read, filename: &str) -> Result<(), Box<dyn std:
 mod tests {
     use super::*;
     use crate::bwt_util::naive_bwt;
+    use crate::dynamic_bwt::DynamicBWT;
     use std::io::Cursor;
     use tempfile::{Builder, NamedTempFile};
 
@@ -207,5 +254,42 @@ mod tests {
             read_result.push(c.unwrap());
         }
         assert_eq!(expected_result, read_result);
+    }
+
+    #[test]
+    fn test_save_bwt_runs_numpy() {
+        //this is very similar to the above test, but with a real string
+        let mock_runs: Vec<(u8, u64)> = vec![(1, 32+32*32*3), (0, 1)];
+        let header_string = b"\x93NUMPY\x01\x00\x56\x00{\'descr\': \'|u1\', \'fortran_order\': False, \'shape\': (4, ), }";
+        let mut expected_result: Vec<u8> = header_string.to_vec();
+        while expected_result.len() < 95 {
+            expected_result.push(32);
+        }
+        expected_result.push(10);
+
+        //this is the numpy formatted bwt
+        expected_result.push(1);
+        expected_result.push(9);
+        expected_result.push(1+(3 << 3));
+        expected_result.push(0+(1 << 3));
+
+        //save it to a fake file
+        let file: NamedTempFile = Builder::new().prefix("temp_data_").suffix(".npy").tempfile().unwrap();
+        let filename: String = file.path().to_str().unwrap().to_string();
+        save_bwt_runs_numpy(mock_runs.iter().cloned(), &filename).unwrap();
+        
+        //check the raw outputs first
+        let read_file = File::open(&filename).unwrap();
+        let mut read_result: Vec<u8> = Vec::<u8>::new();
+        for c in read_file.bytes() {
+            read_result.push(c.unwrap());
+        }
+        assert_eq!(expected_result, read_result);
+
+        //now check loading as well
+        let mut bwt: DynamicBWT = Default::default();
+        bwt.load_numpy_file(&filename).unwrap();
+        assert_eq!(bwt.get_symbol_counts(), [1, 32+32*32*3, 0, 0, 0, 0]);
+        assert_eq!(bwt.run_iter().collect::<Vec<(u8, u64)>>(), mock_runs);
     }
 }
