@@ -413,6 +413,21 @@ impl DynamicBWT {
     pub fn iter(&self) -> impl Iterator<Item = u8> + '_ {
         self.tree_bwt.into_iter()
     }
+
+    /// This will return an iterator over the runs in the BWT in format (symbol, length).
+    /// # Examples
+    /// ```rust
+    /// use msbwt2::dynamic_bwt::DynamicBWT;
+    /// let mut bwt: DynamicBWT = Default::default();
+    /// bwt.insert_string("ACCC", true);
+    /// let runs: Vec<(u8, u64)> = bwt.run_iter().collect::<Vec<(u8, u64)>>();
+    /// //C$CCA
+    /// let expected_runs: Vec<(u8, u64)> = vec![(2, 1), (0, 1), (2, 2), (1, 1)];
+    /// assert_eq!(expected_runs, runs);
+    /// ```
+    pub fn run_iter(&self) -> impl Iterator<Item = (u8, u64)> + '_ {
+        self.tree_bwt.run_iter()
+    }
 }
 
 
@@ -776,5 +791,28 @@ mod tests {
         assert_eq!(truth_bwt.count_kmer(&string_util::convert_stoi(&"$")), 2);
         assert_eq!(truth_bwt.count_kmer(&string_util::convert_stoi(&"ACGT")), 1);
         assert_eq!(truth_bwt.count_kmer(&string_util::convert_stoi(&"TGCA")), 1);
+    }
+
+    #[test]
+    fn test_run_iter() {
+        //let's just do a basic test, all the main stuff happens elsewhere
+        let mut bwt: DynamicBWT = Default::default();
+        let runs: Vec<(u8, u64)> = bwt.run_iter().collect::<Vec<(u8, u64)>>();
+        let expected_runs: Vec<(u8, u64)> = vec![];
+        assert_eq!(expected_runs, runs);
+
+        //add one string
+        bwt.insert_string("AAAA", true);
+        let runs: Vec<(u8, u64)> = bwt.run_iter().collect::<Vec<(u8, u64)>>();
+        //AAAA$
+        let expected_runs: Vec<(u8, u64)> = vec![(1, 4), (0, 1)];
+        assert_eq!(expected_runs, runs);
+
+        //add another
+        bwt.insert_string("ACCC", true);
+        let runs: Vec<(u8, u64)> = bwt.run_iter().collect::<Vec<(u8, u64)>>();
+        //ACAAA$$CCA
+        let expected_runs: Vec<(u8, u64)> = vec![(1, 1), (2, 1), (1, 3), (0, 2), (2, 2), (1, 1)];
+        assert_eq!(expected_runs, runs);
     }
 }
