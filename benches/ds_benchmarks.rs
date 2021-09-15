@@ -1,12 +1,16 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
+use msbwt2::bwt_converter::save_bwt_runs_numpy;
+use msbwt2::dynamic_bwt::DynamicBWT;
+use msbwt2::msbwt_core::BWT;
 use msbwt2::rle_bplus_tree::RLEBPlusTree;
+use msbwt2::rle_bwt::RleBWT;
 use msbwt2::run_block_av_flat::RLEBlock;
+use msbwt2::string_util;
 use rand::Rng;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-//use rand_core::SeedableRng;
 
 fn get_random_insert(length: usize) -> (Vec<u64>, Vec<u8>) {
     //this is how to provide a constant "random" set of inserts to play with
@@ -39,6 +43,16 @@ fn get_constant_insert() -> (Vec<u64>, Vec<u8>) {
     (positions, inserted)
 }
 
+fn create_fixed_bwt() -> String {
+    let out_fn: String = "./test_data/example_output_bench_001.npy".to_string();
+    let mut bwt: DynamicBWT = Default::default();
+    for _ in 0..10000 {
+        bwt.insert_string("AAAAACCCCCTTTTTGGGGGACGTACGTTGCATGCA", true);
+    }
+    save_bwt_runs_numpy(bwt.run_iter(), &out_fn).unwrap();
+    out_fn
+}
+
 pub fn bench_rle_bplus_tree(c: &mut Criterion) {
     let (positions, symbols) = get_random_insert(10000);
     
@@ -65,5 +79,26 @@ pub fn bench_rle_block(c: &mut Criterion) {
     }));
 }
 
-criterion_group!(benches, bench_rle_bplus_tree, bench_rle_block);
+pub fn bench_bwt_queries(c: &mut Criterion) {
+    let bwt_fn: String = create_fixed_bwt();
+    let mut rle_bwt: RleBWT = Default::default();
+    rle_bwt.load_numpy_file(&bwt_fn).unwrap();
+    let mut dyn_bwt: DynamicBWT = Default::default();
+    dyn_bwt.load_numpy_file(&bwt_fn).unwrap();
+
+    let query1 = string_util::convert_stoi(&"ACGT");
+    let query2 = string_util::convert_stoi(&"AACC");
+
+    c.bench_function("rle_bwt_count_kmer", |b| b.iter(|| {
+        black_box(rle_bwt.count_kmer(&query1));
+        black_box(rle_bwt.count_kmer(&query2));
+    }));
+
+    c.bench_function("dyn_bwt_count_kmer", |b| b.iter(|| {
+        black_box(dyn_bwt.count_kmer(&query1));
+        black_box(dyn_bwt.count_kmer(&query2));
+    }));
+}
+
+criterion_group!(benches, bench_rle_bplus_tree, bench_rle_block, bench_bwt_queries);
 criterion_main!(benches);
