@@ -343,7 +343,7 @@ impl DynamicBWT {
                 }
             } else {
                 //short circuit success, making it smaller will save 2 bases queries, and we also have downweighted this
-                //self.sort_query_len -= 0.2 * COST_FACTOR;
+                self.sort_query_len -= 2.0 * COST_FACTOR;
                 self.short_circuits[0] += 1;
             }
         } else {
