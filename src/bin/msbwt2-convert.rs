@@ -68,7 +68,14 @@ fn main() {
     
     //this is where the work happens
     let comp_bwt = convert_to_vec(input_reader);
-    save_bwt_numpy(&comp_bwt[..], &bwt_fn).unwrap();
+    match save_bwt_numpy(&comp_bwt[..], &bwt_fn) {
+        Ok(_) => {},
+        Err(e) => {
+            error!("Error saving BWT to file: {:?}", bwt_fn);
+            error!("Error: {:?}", e);
+            std::process::exit(exitcode::IOERR);
+        }
+    };
 
     info!("RLE-BWT conversion complete.");
 }

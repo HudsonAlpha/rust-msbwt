@@ -11,8 +11,8 @@ If you have any feature requests, feel free to submit a new issue on GitHub.
 Here is a current list of planned additions:
 
 1. Incorporate the high-memory BWT implementation from `fmlrc2`
-2. Add a built-in BWT construction tool (instead of relying on external tools like `ropebwt2`)
-3. Add some more query functionality
+2. Add some more query functionality
+3. Improve the performance of the built-in BWT construction tool (`msbwt2-build`)
 
 ## Installation
 All installation options assume you have installed [Rust](https://www.rust-lang.org) along with the `cargo` crate manager for Rust.
@@ -36,11 +36,17 @@ cargo build --release
 ## Usage
 ### MSBWT Building
 The Multi-String Burrows Wheeler Transform (MSBWT or BWT) must be built prior to performing any queries. 
-Currently, there is no built in builder, but we expect to have one included soon.
-For now, the [original instructions](https://github.com/holtjma/fmlrc#building-the-short-read-bwt) can be used.
-
-Given a FASTQ file of reads (`reads.fq.gz`), you can also use the following command from this crate to create a BWT at `comp_msbwt.npy`.  
-Note that this command requires the [ropebwt2](https://github.com/lh3/ropebwt2) executable to be installed:
+Currently, there are two ways to build the BWT with identical results:
+1. Using the built-in `msbwt2-build` tool. 
+This approach will accept any combination of FASTQ or FASTA files that may be gzip-compressed.  
+This method tends to be slower currently and is not parallelized (we hope to improve both of these over time).
+However, it is easier to use with different file types requires only `msbwt2` to be installed:
+```
+msbwt2-build \
+    -o comp_msbwt.npy \
+    reads.fq.gz
+```
+2. Using an external tool and feeding that to `msbwt2-convert`. This approach tends to be faster currently.  However, the following command is more complex, less flexible file typing, and requires the [ropebwt2](https://github.com/lh3/ropebwt2) executable (or a similar tool) to be installed:
 ```
 gunzip -c reads.fq.gz | \
     awk 'NR % 4 == 2' | \
@@ -50,10 +56,6 @@ gunzip -c reads.fq.gz | \
     tr NT TN | \
     msbwt2-convert comp_msbwt.npy
 ```
-
-#### Optional Construction Speedup
-If you are **only** using the BWT for k-mer queries, then the `sort` can be removed from the above command. 
-This will reduce construction time significantly, but loses the read recovery property of the BWT.
 
 ### Queries
 The general use case of the library is k-mer queries, which can be performed as follows:
