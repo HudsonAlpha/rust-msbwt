@@ -11,8 +11,8 @@ If you have any feature requests, feel free to submit a new issue on GitHub.
 Here is a current list of planned additions:
 
 1. Incorporate the high-memory BWT implementation from `fmlrc2`
-2. Add a built-in BWT construction tool (instead of relying on external tools like `ropebwt2`)
-3. Add some more query functionality
+2. Add some more query functionality
+3. Improve the performance of the built-in BWT construction tool (`msbwt2-build`)
 
 ## Installation
 All installation options assume you have installed [Rust](https://www.rust-lang.org) along with the `cargo` crate manager for Rust.
