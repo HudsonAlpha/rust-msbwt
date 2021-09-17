@@ -206,19 +206,19 @@ impl BinaryBlock {
 
         //zero out while we have to
         let mut to_increment: bool = true;
-        while current_index < self.runs.len() && 
-            (self.runs[current_index] & SYMBOL_MASK) == symbol &&
-            to_increment
-        {
-            let overflow_result = self.runs[current_index].overflowing_add(SINGLE_COUNT);
-            self.runs[current_index] = overflow_result.0;
-            to_increment = overflow_result.1;
-            current_index += 1;
-        }
-
-        //we need to extend the run into the next byte
-        if to_increment {
-            self.runs.insert(current_index, symbol+SINGLE_COUNT);
+        while to_increment {
+            //check if its an ongoing run
+            if current_index < self.runs.len() && (self.runs[current_index] & SYMBOL_MASK) == symbol {
+                //it is, do an overflowing add
+                let overflow_result = self.runs[current_index].overflowing_add(SINGLE_COUNT);
+                self.runs[current_index] = overflow_result.0;
+                to_increment = overflow_result.1;
+                current_index += 1;
+            } else {
+                //it's not, insert and be done now
+                self.runs.insert(current_index, symbol+SINGLE_COUNT);
+                to_increment = false;
+            }
         }
     }
 
@@ -230,20 +230,17 @@ impl BinaryBlock {
             closest_down -= 1;
         }
 
-        let mut closest_up: usize = midpoint;
-        while closest_up < self.runs.len() && (self.runs[closest_up-1] & SYMBOL_MASK) == (self.runs[closest_up] & SYMBOL_MASK) {
-            closest_up += 1;
-        }
-
-        if closest_down == 0 && closest_up == self.runs.len() {
-            panic!("single run, block cannot be split");
-        }
-
-        let breakpoint: usize = if midpoint - closest_down < closest_up - midpoint {
+        let breakpoint: usize = if closest_down > 0 {
             //break using down 
             closest_down
         } else {
-            //break using up
+            let mut closest_up: usize = midpoint;
+            while closest_up < self.runs.len() && (self.runs[closest_up-1] & SYMBOL_MASK) == (self.runs[closest_up] & SYMBOL_MASK) {
+                closest_up += 1;
+            }
+            if closest_up == self.runs.len() {
+                panic!("single run, block cannot be split");
+            }
             closest_up
         };
 
@@ -270,10 +267,7 @@ impl BinaryBlock {
         new_block_counts[curr_sym as usize] += curr_count;
         new_block_size += curr_count;
 
-        //let mut new_block_data: Vec<u8> = Vec::<u8>::with_capacity(CAPACITY_BUFFER);
-        let mut new_runs_data = ArrayVec::<u8, CAPACITY_BUFFER>::new();
-        new_runs_data.try_extend_from_slice(&self.runs[breakpoint..]).unwrap();
-        self.runs.truncate(breakpoint);
+        let new_runs_data: ArrayVec<u8, CAPACITY_BUFFER> = self.runs.drain(breakpoint..).collect();
 
         //build the block
         let ret: BinaryBlock = BinaryBlock {

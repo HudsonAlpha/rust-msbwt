@@ -8,6 +8,7 @@ use msbwt2::rle_bplus_tree::RLEBPlusTree;
 use msbwt2::rle_bwt::RleBWT;
 use msbwt2::run_block_av_flat::RLEBlock;
 use msbwt2::string_util;
+use msbwt2::wavelet_tree::WaveletTree;
 use rand::Rng;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -21,6 +22,22 @@ fn get_random_insert(length: usize) -> (Vec<u64>, Vec<u8>) {
     let mut positions: Vec<u64> = vec![];
     for i in 0..length {
         let symbol: u8 = rng.gen_range(0, 6);
+        let position: u64 = rng.gen_range(0, i+1) as u64;
+        inserted.push(symbol);
+        positions.push(position);    
+    }
+    (positions, inserted)
+}
+
+fn get_biased_insert(length: usize) -> (Vec<u64>, Vec<u8>) {
+    //this is how to provide a constant "random" set of inserts to play with
+    let mut rng = StdRng::seed_from_u64(0);
+
+    //get random symbols AND positions into the array
+    let mut inserted: Vec<u8> = vec![];
+    let mut positions: Vec<u64> = vec![];
+    for i in 0..length {
+        let symbol: u8 = 0;//rng.gen_range(0, 6);
         let position: u64 = rng.gen_range(0, i+1) as u64;
         inserted.push(symbol);
         positions.push(position);    
@@ -54,10 +71,32 @@ fn create_fixed_bwt() -> String {
 }
 
 pub fn bench_rle_bplus_tree(c: &mut Criterion) {
-    let (positions, symbols) = get_random_insert(10000);
+    let (positions, symbols) = get_random_insert(100000);
     
-    c.bench_function("rle_bplus_tree_10k_random", |b| b.iter(|| {
+    c.bench_function("rle_bplus_tree_100k_random", |b| b.iter(|| {
         let mut tree: RLEBPlusTree = Default::default();
+        for (position, symbol) in positions.iter().zip(symbols.iter()) {
+            black_box(tree.insert_and_count(*position, *symbol));
+        }
+    }));
+
+    c.bench_function("wavelet_tree_100k_random", |b| b.iter(|| {
+        let mut tree: WaveletTree = Default::default();
+        for (position, symbol) in positions.iter().zip(symbols.iter()) {
+            black_box(tree.insert_and_count(*position, *symbol));
+        }
+    }));
+
+    let (positions, symbols) = get_biased_insert(1000000);
+    c.bench_function("rle_bplus_tree_1M_biased", |b| b.iter(|| {
+        let mut tree: RLEBPlusTree = Default::default();
+        for (position, symbol) in positions.iter().zip(symbols.iter()) {
+            black_box(tree.insert_and_count(*position, *symbol));
+        }
+    }));
+
+    c.bench_function("wavelet_tree_1M_biased", |b| b.iter(|| {
+        let mut tree: WaveletTree = Default::default();
         for (position, symbol) in positions.iter().zip(symbols.iter()) {
             black_box(tree.insert_and_count(*position, *symbol));
         }
