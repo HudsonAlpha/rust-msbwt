@@ -42,7 +42,8 @@ assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"$")), 3);
 assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"ACGT")), 2);
 ```
 */
-
+/// TODO
+//pub mod binamic_bwt;
 /// TODO
 pub mod binary_block;
 /// TODO
@@ -63,3 +64,5 @@ pub mod string_util;
 pub mod rle_bplus_tree;
 /// Contains a block structure for capturing runs of data in a more succinct but dynamic format
 pub mod run_block_av_flat;
+//TODO
+pub mod wavelet_tree;
