@@ -269,8 +269,8 @@ impl BinaryBlock {
         };
 
         //now update internals before returning
-        for i in 0..VC_LEN {
-            self.symbol_counts[i] -= new_block_counts[i];
+        for (i, nbc) in new_block_counts.iter().enumerate() {
+            self.symbol_counts[i] -= nbc;
         }
         self.values_contained -= new_block_size;
         ret
