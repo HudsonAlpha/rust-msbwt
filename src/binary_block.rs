@@ -2,8 +2,8 @@ use arrayvec::ArrayVec;
 
 /// This is the number of bytes used for data storage.
 /// When it reaches this size, the block should be split to avoid issues.
-pub const MAX_BLOCK_SIZE: usize = 63; // best for current B+
-const CAPACITY_BUFFER: usize = MAX_BLOCK_SIZE+2;
+pub const MAX_BLOCK_SIZE: usize = 60; // best for current B+
+const CAPACITY_BUFFER: usize = MAX_BLOCK_SIZE+4;
 
 /// The number of characters in our alphabet
 pub const VC_LEN: usize = 2;      //0 or 1
@@ -41,6 +41,20 @@ impl Default for BinaryBlock {
 }
 
 impl BinaryBlock {
+    #[inline]
+    pub fn get_symbol_counts(&self) -> [u64; VC_LEN] {
+        self.symbol_counts
+    }
+
+    #[inline]
+    pub fn get_values_contained(&self) -> u64 {
+        self.values_contained
+    }
+
+    pub fn block_len(&self) -> usize {
+        self.runs.len()
+    }
+
     #[inline]
     pub fn count(&self, position: u64, symbol: u8) -> u64 {
         //make sure we're inserting valid symbols into a valid position
@@ -135,7 +149,7 @@ impl BinaryBlock {
         let run_end = i;
         
         if sym == symbol {
-            //this can only happen if i != 0, so increment i-1
+            //the run we're looking at is the same as what we're inserting
             self.increment_run(run_start);
         } else if position < pos_end {
             //our insert is in the middle of the run and different, we need to split the run
@@ -149,7 +163,7 @@ impl BinaryBlock {
                 splice_in.push(new_byte);
                 counts_before >>= NUMBER_BITS;
             }
-            splice_in.push(symbol | 0x2);
+            splice_in.push(symbol | SINGLE_COUNT);
             while counts_after > 0 {
                 let new_byte = sym | (((counts_after & COUNT_MASK as u64) as u8) << 1);
                 splice_in.push(new_byte);
@@ -163,6 +177,7 @@ impl BinaryBlock {
             for _ in 0..byte_shift {
                 self.runs.push(0);
             }
+
             //now shift values into the buffer
             for j in (run_end+byte_shift..self.runs.len()).rev() {
                 self.runs[j] = self.runs[j-byte_shift];
@@ -172,13 +187,12 @@ impl BinaryBlock {
             for (index, &value) in splice_in.iter().enumerate() {
                 self.runs[run_start+index] = value;
             }
-
-        } else if i < self.runs.len() {
-            //right on a position boundary AND the next run must match our symbol, so increment
+        } else if i < self.runs.len() && (self.runs[i] & SYMBOL_MASK) == symbol {
+            //right on a run boundary AND the next run matches our symbol, so increment the next run
             self.increment_run(i);
         } else {
             //right on a position boundary (or at the very end) and the next run does not match, so do an insert
-            self.runs.insert(i, symbol | 0x2);
+            self.runs.insert(i, symbol | SINGLE_COUNT);
         }
 
         //return the accumulated counts for the symbol we care about
@@ -362,7 +376,6 @@ mod tests {
         //TODO
         //assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), correct_data);
     }
-
     
     #[test]
     fn test_insert_splitting() {
