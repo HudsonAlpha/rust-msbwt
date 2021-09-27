@@ -56,6 +56,14 @@ impl Default for WaveletTree {
 }
 
 impl WaveletTree {
+    pub fn get_height(&self) -> usize {
+        self.wavelets.iter().map(|w| w.get_height()).max().unwrap()
+    }
+
+    pub fn get_node_count(&self) -> usize {
+        self.wavelets.iter().map(|w| w.get_node_count()).sum()
+    }
+
     pub fn count(&self, index: u64, value: u8) -> u64 {
         let query_order = TREE_ORDER[value as usize];
         let bit_order = BINARY_TRANSLATIONS[value as usize];
@@ -119,6 +127,62 @@ impl WaveletTree {
 
         ret
     }
+
+    pub fn run_iter(&self) -> WaveletTreeRunIterator<'_> {
+        //let next_child_index = self.next_child[0];
+        //let current_block_iter = self.data_arena[0].raw_iter();
+        WaveletTreeRunIterator {
+            tree: self,
+            //next_child_index,
+            //current_block_iter,
+            //next_sym: 0,
+            //next_count: 0
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a WaveletTree {
+    type Item = u8;
+    type IntoIter = WaveletTreeIterator<'a>;
+    fn into_iter(self) -> Self::IntoIter {
+        let vec_iter = self.to_vec().into_iter();
+        WaveletTreeIterator {
+            tree: self,
+            vec_iter
+        }
+    }
+}
+
+//TODO: make this more efficient
+pub struct WaveletTreeIterator<'a> {
+    tree: &'a WaveletTree,
+    vec_iter: std::vec::IntoIter<u8>
+}
+
+impl<'a> Iterator for WaveletTreeIterator<'a> {
+    type Item = u8;
+    /// Will return the next symbol contained by the compressed B+ tree data
+    fn next(&mut self) -> Option<u8> {
+        match self.vec_iter.next() {
+            //current block has data, so return it
+            Some(x) => Some(x),
+            None => {
+                None
+            }
+        }
+    }
+}
+
+pub struct WaveletTreeRunIterator<'a> {
+    tree: &'a WaveletTree
+}
+
+impl<'a> Iterator for WaveletTreeRunIterator<'a> {
+    type Item = (u8, u64);
+    /// Will return the next run contained by the compressed B+ tree data
+    fn next(&mut self) -> Option<(u8, u64)> {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -147,9 +211,8 @@ mod tests {
             assert_eq!(count, expected_counts[i]);
         }
         assert_eq!(tree.to_vec(), data);
-        
-        /*
         assert_eq!(tree.into_iter().collect::<Vec<u8>>(), data);
+        /*
         //check the pairs since this is in-order
         let runs: Vec<(u8, u64)> = vec![(0, 1), (1, 3), (2, 1), (0, 1), (2, 1), (3, 1), (4, 1), (1, 3), (0, 1)];
         let full_pairing = tree.run_iter().collect::<Vec<(u8, u64)>>();
@@ -181,7 +244,7 @@ mod tests {
             assert_eq!(tree.to_vec(), data);
             
             //TODO
-            //assert_eq!(tree.into_iter().collect::<Vec<u8>>(), data);
+            assert_eq!(tree.into_iter().collect::<Vec<u8>>(), data);
         }
     }
 }

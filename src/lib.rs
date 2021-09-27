@@ -46,6 +46,7 @@ assert_eq!(bwt.count_kmer(&string_util::convert_stoi(&"ACGT")), 2);
 //pub mod binamic_bwt;
 /// TODO
 pub mod binary_block;
+pub mod binary_block_flat;
 /// TODO
 pub mod binary_bplus_tree;
 /// Contains the function for reformating a BWT string into the expected run-length format or numpy file

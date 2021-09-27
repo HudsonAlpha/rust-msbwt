@@ -11,7 +11,9 @@ use crate::msbwt_core::*;
 
 use crate::run_block_av_flat::VC_LEN;
 use crate::rle_bplus_tree::RLEBPlusTree;
+//use crate::rle_bplus_tree_binary::RLEBPlusTree;
 use crate::string_util::convert_stoi;
+use crate::wavelet_tree::WaveletTree;
 
 /// The inital k-mer size used for short circuiting
 const INITIAL_QUERY: usize = 10;
@@ -24,6 +26,7 @@ const COST_FACTOR: f64 = 0.000001;
 pub struct DynamicBWT {
     /// The actual B+ tree structure
     tree_bwt: RLEBPlusTree,
+    //tree_bwt: WaveletTree,
     /// The total number of each symbol captured by the BWT
     symbol_counts: [u64; VC_LEN],
     /// The start index of each symbol ($ is always 0)
@@ -375,7 +378,7 @@ impl DynamicBWT {
         self.string_count += 1;
 
         if self.string_count % 10000 == 0 {
-            info!("Strings: {}\tShort-k: {:.2}\t[pass, dup, fail]: {:?}", self.string_count, self.sort_query_len, self.short_circuits);
+            info!("Strings: {}\tShort-k: {:.2}\t[pass, dup, fail]: {:?}\tHeight, nodes: {} {}", self.string_count, self.sort_query_len, self.short_circuits, self.get_height(), self.get_node_count());
             self.short_circuits = [0; 3];
         }
     }
