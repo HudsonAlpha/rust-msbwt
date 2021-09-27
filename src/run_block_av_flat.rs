@@ -1,5 +1,6 @@
 
 use arrayvec::ArrayVec;
+use likely_stable::{likely,unlikely};
 
 /// This is the number of bytes used for data storage.
 /// When it reaches this size, the block should be split to avoid issues.
@@ -8,19 +9,19 @@ const CAPACITY_BUFFER: usize = MAX_BLOCK_SIZE+2;
 
 /// The number of characters in our alphabet
 pub const VC_LEN: usize = 6;      //$ A C G N T
-/// The number of bit for storing quantity in a byte
-pub const NUMBER_BITS: usize = 8; //8-letterBits
+/// the number of bits that are encoding the symbol
+const SYMBOL_BITS: usize = 3;
 /// Contains the right-shifted number mask
-pub const COUNT_MASK: u8 = 0xFF;
-/// Stores the value of a half-full u8 block (e.g. 128)
-pub const HALF_FULL: u8 = 128;
-/// Multiplier for multi-byte runs
-pub const NUM_POWER: usize = 256;  //2**numberBits
+const SYMBOL_MASK: u16 = 0x07;
+/// Stores the set bits for a half full block, e.g. (2**12) << 3
+const HALF_FULL: u16 = 0x8000;
+/// Stores the set bits for a single count block e.g. 1 << 3
+const SINGLE_COUNT: u16 = 0x0008;
 
 /// A run-length encoded block of data implemented with an ArrayVec
 #[derive(Clone,Debug,PartialEq)]
 pub struct RLEBlock {
-    runs: ArrayVec<(u8, u8), CAPACITY_BUFFER>,
+    runs: ArrayVec<u16, CAPACITY_BUFFER>,
     symbol_counts: [u64; VC_LEN],
     values_contained: u64
 }
@@ -29,13 +30,37 @@ impl Default for RLEBlock {
     /// Default function
     #[inline]
     fn default() -> Self {
-        let runs = ArrayVec::<(u8, u8), CAPACITY_BUFFER>::new();
+        let runs = ArrayVec::<u16, CAPACITY_BUFFER>::new();
         Self {
             runs,
             symbol_counts: [0; VC_LEN],
             values_contained: 0
         }
     }
+}
+/*
+#[inline] 
+fn calc_run_bytes(count: u64) -> usize {
+    if count < (1_u64 << 13) {
+        1
+    } else {
+        2
+    }
+}
+*/
+#[inline]
+fn encode_run(symbol: u8, count: u16) -> u16 {
+    //assert!(count < (1_u16 << 13));
+    //1 bit for length, 3 bits for symbol, leaves 16-4 = 12 for length
+    (symbol as u16) | (count << SYMBOL_BITS) as u16
+}
+
+#[inline]
+fn decode_run(run: u16) -> (u8, u16) {
+    (
+        (run & SYMBOL_MASK) as u8, 
+        (run >> SYMBOL_BITS)
+    )
 }
 
 impl RLEBlock {
@@ -89,17 +114,18 @@ impl RLEBlock {
         
         //now iterate
         let mut i: usize = 0;
-        let mut sym: u8 = 0;
-        let mut count: u8;
+        let mut run: (u8, u16) = (0, 0);
         while pos_end < position {
-            sym = self.runs[i].0;
-            count = self.runs[i].1;
-            total_counts[sym as usize] += count as u64;
-            pos_end += count as u64;
+            //get the symbol and the added counts
+            run = decode_run(self.runs[i]);
+
+            //add the count to the total so far
+            total_counts[run.0 as usize] += run.1 as u64;
+            pos_end += run.1 as u64;
             i += 1;
         }
         //we potentially went past the target, so subtract those back out
-        total_counts[sym as usize] -= pos_end - position;
+        total_counts[run.0 as usize] -= pos_end - position;
         
         //return the accumulated counts for the symbol we care about
         total_counts[symbol as usize]
@@ -140,61 +166,75 @@ impl RLEBlock {
         
         //now iterate
         let mut i: usize = 0;
-        let mut sym: u8 = VC_LEN as u8;
-        let mut count: u8 = 0;
+        let mut run: (u8, u16) = (VC_LEN as u8, 0);
         while pos_end < position {
-            sym = self.runs[i].0;
-            count = self.runs[i].1;
-            total_counts[sym as usize] += count as u64;
-            pos_end += count as u64;
+            //get the symbol and the added counts
+            run = decode_run(self.runs[i]);
+
+            //add the count to the total so far
+            total_counts[run.0 as usize] += run.1 as u64;
+            pos_end += run.1 as u64;
             i += 1;
         }
 
         //we potentially went past the target, so subtract those back out
-        total_counts[sym as usize] -= pos_end - position;
+        total_counts[run.0 as usize] -= pos_end - position;
 
-        if sym == symbol {
-            //this can only happen if i != 0, so increment i-1
+        //first, find the end of the run we're currently in
+        if run.0 == symbol {
+            //the run we're looking at is the same as what we're inserting
             self.increment_run(i-1);
         } else if position < pos_end {
             //our insert is in the middle of the run and different, we need to split the run
-            let counts_after: u8 = (pos_end - position) as u8;
-            let counts_before: u8 = count - counts_after;
+            let counts_after: u16 = (pos_end - position) as u16;
+            let counts_before: u16 = run.1 - counts_after;
+            self.runs[i-1] = encode_run(run.0, counts_before);
 
-            self.runs[i-1].1 = counts_before;
-
-            //the lines below are doing this two insert operation
-            //self.runs.insert(i, (symbol, 1));
-            //self.runs.insert(i+1, (sym, counts_after));
+            //let new_length = 1+calc_run_bytes(counts_before)+calc_run_bytes(counts_after) - run.2;
+            let new_length = 2;
 
             //this method only shifts the values once, so more efficient than double insert
-            self.runs.push((0, 0));
-            self.runs.push((0, 0));
-            for j in (i+2..self.runs.len()).rev() {
-                self.runs[j] = self.runs[j-2];
+            self.runs.try_extend_from_slice(&vec![0; new_length]).unwrap();
+            for j in (i+new_length..self.runs.len()).rev() {
+                self.runs[j] = self.runs[j-new_length];
             }
-            self.runs[i] = (symbol, 1);
-            self.runs[i+1] = (sym, counts_after);
-        } else if i < self.runs.len() && self.runs[i].0 == symbol {
-            //right on a position boundary AND the next run matches our symbol, so increment
+            self.runs[i] = encode_run(symbol, 1);
+            self.runs[i+1] = encode_run(run.0, counts_after);
+        } else if i < self.runs.len() && (self.runs[i] & SYMBOL_MASK) as u8 == symbol {
+            //right on a run boundary AND the next run matches our symbol, so increment the next run
             self.increment_run(i);
         } else {
             //right on a position boundary (or at the very end) and the next run does not match, so do an insert
-            self.runs.insert(i, (symbol, 1));
+            //self.runs.insert(i, symbol | SINGLE_COUNT);
+            self.runs.insert(i, (symbol as u16) | SINGLE_COUNT);
+            //encode_run(&mut self.runs[i..], symbol, 1);
         }
-        
-        //return the accumulated counts
+
+        //return the accumulated counts for the symbol we care about
         total_counts[symbol as usize]
     }
 
     #[inline]
-    fn increment_run(&mut self, block_index: usize) {
+    fn increment_run(&mut self, run_index: usize) {
+        /*
+        let curr_run = decode_run(&self.runs[run_index..]);
+        let curr_bytes = curr_run.2;
+        let next_bytes = calc_run_bytes(curr_run.1+1);
+        
+        for _ in 0..next_bytes-curr_bytes {
+            self.runs.insert(run_index+1, 0);
+        }
+
+        encode_run(&mut self.runs[run_index..], curr_run.0, curr_run.1+1);
+        */
         //increment
-        self.runs[block_index].1 = self.runs[block_index].1.wrapping_add(1);
-        if self.runs[block_index].1 == 0 {
+        let overflow = self.runs[run_index].overflowing_add(SINGLE_COUNT);
+        self.runs[run_index] = overflow.0;
+        if unlikely(overflow.1) {
+            println!("split");
             //if it overflows, split into two halfs at the same position
-            self.runs[block_index].1 = HALF_FULL;
-            self.runs.insert(block_index+1, self.runs[block_index]);
+            self.runs[run_index] |= HALF_FULL;
+            self.runs.insert(run_index+1, self.runs[run_index]);
         }
     }
     
@@ -206,11 +246,12 @@ impl RLEBlock {
         let mut new_block_size: u64 = 0;
         
         //drain from the breakpoint, counting the symbols as we go
-        let new_runs_data: ArrayVec<(u8, u8), CAPACITY_BUFFER> = self.runs.drain(breakpoint..)
+        let new_runs_data: ArrayVec<u16, CAPACITY_BUFFER> = self.runs.drain(breakpoint..)
             .map(
-                |(sym, count)| {
-                    new_block_counts[sym as usize] += count as u64;
-                    (sym, count)
+                |v| {
+                    let run = decode_run(v);
+                    new_block_counts[run.0 as usize] += run.1 as u64;
+                    v
                 }
             ).collect();
 
@@ -230,23 +271,76 @@ impl RLEBlock {
         }
         self.values_contained -= new_block_size;
         ret
+        
+        /*
+        //first figure out what this block will change to
+        let mut breakpoint = 0;
+        let mut block_counts: [u64; VC_LEN] = [0; VC_LEN];
+        while breakpoint < self.runs.len() / 2 {
+            let run = decode_run(&self.runs[breakpoint..]);
+            block_counts[run.0 as usize] += run.1;
+            breakpoint += 1;
+        }
+        let block_size: u64 = block_counts.iter().sum();
+
+        //now figure out the new block
+        let new_block_size: u64 = self.values_contained - block_size;
+        let mut new_block_counts: [u64; VC_LEN] = [0; VC_LEN];
+        for (i, &bc) in block_counts.iter().enumerate() {
+            new_block_counts[i] = self.symbol_counts[i] - bc;
+        }
+        let new_runs_data: ArrayVec<u16, CAPACITY_BUFFER> = self.runs.drain(breakpoint..).collect();
+        //let mut new_runs_data: ArrayVec<u8, CAPACITY_BUFFER> = Default::default();
+        //new_runs_data.try_extend_from_slice(&self.runs[breakpoint..]).unwrap();
+        //self.runs.truncate(breakpoint);
+
+        //build the block
+        let ret: RLEBlock = RLEBlock {
+            runs: new_runs_data,
+            symbol_counts: new_block_counts,
+            values_contained: new_block_size
+        };
+
+        //finally update this block
+        self.symbol_counts = block_counts;
+        self.values_contained = block_size;
+
+        //now return
+        ret
+        */
     }
 
     /// Returns a vector representation of the contained data, one symbol per entry
     pub fn to_vec(&self) -> Vec<u8> {
-        let mut ret: Vec<u8> = vec![0; self.values_contained as usize];
-        let mut ret_index: usize = 0;
-        for &(curr_sym, count) in self.runs.iter() {
-            ret[ret_index..ret_index+count as usize].fill(curr_sym);
-            ret_index += count as usize;
+        let mut ret: Vec<u8> = Vec::<u8>::with_capacity(self.values_contained as usize);
+        
+        //now iterate
+        let mut i = 0;
+        while i < self.runs.len() {
+            //get the symbol and the added counts
+            let run = decode_run(self.runs[i]);
+            
+            //add the run symbol to the vec
+            for _ in 0..run.1 {
+                ret.push(run.0 as u8);
+            }
+            i += 1;
         }
+        
         ret
     }
 
+    /*
     /// Returns the raw data iterator, one (u8, u8) run block per entry
     pub fn raw_iter(&self) -> std::slice::Iter<(u8, u8)> {
-        self.runs.iter()
+        self.runs.iter().map(
+            |&b| {
+                let d = decode_run(&[b]);
+                (b.0, b.1 as u8)
+            }
+        )
     }
+    */
 }
 
 #[cfg(test)]
@@ -256,12 +350,13 @@ mod tests {
     #[test]
     fn test_init() {
         let block: RLEBlock = Default::default();
-        assert_eq!(block.runs.to_vec(), vec![]);
-        assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), vec![]);
+        assert_eq!(block.runs.to_vec(), Vec::<u16>::new());
+        //assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), vec![]);
         for symbol in 0..VC_LEN {
             assert_eq!(0, block.count(0, symbol as u8));
         }
     }
+    
     
     #[test]
     fn test_insert() {
@@ -283,9 +378,10 @@ mod tests {
             assert_eq!(block.count(0, 2), 0);
             assert_eq!(block.insert_and_count(0, 2), 0);
         }
-        let correct_data = vec![(2, 255), (0, 129), (0, 128), (1, 128), (1, 128)];
-        assert_eq!(block.runs.to_vec(), correct_data);
-        assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), correct_data);
+        
+        //let correct_data = vec![(2, 255), (0, 129), (0, 128), (1, 128), (1, 128)];
+        //assert_eq!(block.runs.to_vec(), correct_data);
+        //assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), correct_data);
     }
     
     #[test]
@@ -299,9 +395,11 @@ mod tests {
         assert_eq!(block.count(128, 1), 0);
         assert_eq!(block.insert_and_count(128, 1), 0);
 
-        let correct_data = vec![(0, 128), (1, 1), (0, 127)];
-        assert_eq!(block.runs.to_vec(), correct_data);
-        assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), correct_data);
+        //let correct_data = vec![(0, 128), (1, 1), (0, 127)];
+        let mut correct_data = vec![0; 128];
+        correct_data.extend_from_slice(&vec![1]);
+        correct_data.extend_from_slice(&vec![0; 127]);
+        assert_eq!(block.to_vec(), correct_data);
     }
     
     #[test]
@@ -313,13 +411,15 @@ mod tests {
             block.increment_run(0);
         }
 
-        let correct_data = vec![(0, 129), (0, 128)];
-        assert_eq!(block.runs.to_vec(), correct_data);
-        assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), correct_data);
+        let correct_data = vec![0; 257];//vec![(0, 129), (0, 128)];
+        assert_eq!(block.to_vec(), correct_data);
+        //assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), correct_data);
     }
 
+    /*
     #[test]
     fn test_block_splits() {
+        
         //middle split
         let mut block: RLEBlock = Default::default();
         for _ in 0..512 {
@@ -386,9 +486,9 @@ mod tests {
             symbol_counts: [1, 1, 0, 0, 0, 0],
             values_contained: 2
         });
-        
     }
-    
+    */
+
     #[test]
     fn test_to_vec() {
         //big run test

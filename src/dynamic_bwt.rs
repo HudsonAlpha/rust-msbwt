@@ -375,7 +375,7 @@ impl DynamicBWT {
         self.string_count += 1;
 
         if self.string_count % 10000 == 0 {
-            info!("Strings: {}\tShort-k: {:.2}\t[pass, dup, fail]: {:?}", self.string_count, self.sort_query_len, self.short_circuits);
+            info!("Strings: {}\tShort-k: {:.2}\t[pass, dup, fail]: {:?}\tHeight, nodes: {} {}", self.string_count, self.sort_query_len, self.short_circuits, self.get_height(), self.get_node_count());
             self.short_circuits = [0; 3];
         }
     }
