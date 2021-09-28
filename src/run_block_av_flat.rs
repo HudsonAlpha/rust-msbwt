@@ -204,9 +204,7 @@ impl RLEBlock {
             }
         } else {
             //right on a position boundary (or at the very end) and the next run does not match, so do an insert
-            //self.runs.insert(i, symbol | SINGLE_COUNT);
             self.runs.insert(i, (symbol as u16) | SINGLE_COUNT);
-            //encode_run(&mut self.runs[i..], symbol, 1);
         }
 
         //return the accumulated counts for the symbol we care about
@@ -282,17 +280,15 @@ impl RLEBlock {
         ret
     }
 
-    /*
     /// Returns the raw data iterator, one (u8, u8) run block per entry
-    pub fn raw_iter(&self) -> std::slice::Iter<(u8, u8)> {
+    pub fn run_iter(&self) -> impl Iterator<Item = (u8, u64)> + '_ {
         self.runs.iter().map(
             |&b| {
-                let d = decode_run(&[b]);
-                (b.0, b.1 as u8)
+                let d = decode_run(b);
+                (d.0, d.1 as u64)
             }
         )
     }
-    */
 }
 
 #[cfg(test)]
@@ -303,12 +299,11 @@ mod tests {
     fn test_init() {
         let block: RLEBlock = Default::default();
         assert_eq!(block.runs.to_vec(), Vec::<u16>::new());
-        //assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), vec![]);
+        assert_eq!(block.run_iter().collect::<Vec<(u8, u64)>>(), vec![]);
         for symbol in 0..VC_LEN {
             assert_eq!(0, block.count(0, symbol as u8));
         }
     }
-    
     
     #[test]
     fn test_insert() {
@@ -331,9 +326,8 @@ mod tests {
             assert_eq!(block.insert_and_count(0, 2), 0);
         }
         
-        //let correct_data = vec![(2, 255), (0, 129), (0, 128), (1, 128), (1, 128)];
-        //assert_eq!(block.runs.to_vec(), correct_data);
-        //assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), correct_data);
+        let correct_data = vec![(2, 255), (0, 257), (1, 256)];
+        assert_eq!(block.run_iter().collect::<Vec<(u8, u64)>>(), correct_data);
     }
     
     #[test]
@@ -367,13 +361,11 @@ mod tests {
 
         let correct_data = vec![0; 257];//vec![(0, 129), (0, 128)];
         assert_eq!(block.to_vec(), correct_data);
-        //assert_eq!(block.raw_iter().cloned().collect::<Vec<(u8, u8)>>(), correct_data);
+        assert_eq!(block.run_iter().collect::<Vec<(u8, u64)>>(), vec![(0, 257)]);
     }
 
-    /*
     #[test]
     fn test_block_splits() {
-        
         //middle split
         let mut block: RLEBlock = Default::default();
         for _ in 0..512 {
@@ -381,22 +373,23 @@ mod tests {
         }
         block.insert_and_count(256, 1);
         let new_block: RLEBlock = block.split();
-        let mut runs = ArrayVec::<(u8, u8), CAPACITY_BUFFER>::new();
-        runs.try_extend_from_slice(&vec![(0, 128), (0, 128)]).unwrap();
+        let mut runs = ArrayVec::<u16, CAPACITY_BUFFER>::new();
+        runs.try_extend_from_slice(&vec![encode_run(0, 256)]).unwrap();
         assert_eq!(block, RLEBlock {
             runs,
             symbol_counts: [256, 0, 0, 0, 0, 0],
             values_contained: 256
         });
-        
-        let mut runs = ArrayVec::<(u8, u8), CAPACITY_BUFFER>::new();
-        runs.try_extend_from_slice(&vec![(1, 1), (0, 128), (0, 128)]).unwrap();
+
+        let mut runs = ArrayVec::<u16, CAPACITY_BUFFER>::new();
+        runs.try_extend_from_slice(&vec![encode_run(1, 1), encode_run(0, 256)]).unwrap();
         assert_eq!(new_block, RLEBlock {
             runs,
             symbol_counts: [256, 1, 0, 0, 0, 0],
             values_contained: 257
         });
 
+        
         //early split
         let mut block: RLEBlock = Default::default();
         for _ in 0..256 {
@@ -404,19 +397,19 @@ mod tests {
         }
         block.insert_and_count(1, 1);
         let new_block: RLEBlock = block.split();
-        let mut runs = ArrayVec::<(u8, u8), CAPACITY_BUFFER>::new();
-        runs.try_extend_from_slice(&vec![(0, 1), (1, 1)]).unwrap();
+        let mut runs = ArrayVec::<u16, CAPACITY_BUFFER>::new();
+        runs.try_extend_from_slice(&vec![encode_run(0, 1)]).unwrap();
         assert_eq!(block, RLEBlock {
             runs,
-            symbol_counts: [1, 1, 0, 0, 0, 0],
-            values_contained: 2
+            symbol_counts: [1, 0, 0, 0, 0, 0],
+            values_contained: 1
         });
-        let mut runs = ArrayVec::<(u8, u8), CAPACITY_BUFFER>::new();
-        runs.try_extend_from_slice(&vec![(0, 127), (0, 128)]).unwrap();
+        let mut runs = ArrayVec::<u16, CAPACITY_BUFFER>::new();
+        runs.try_extend_from_slice(&vec![encode_run(1, 1), encode_run(0, 255)]).unwrap();
         assert_eq!(new_block, RLEBlock {
             runs,
-            symbol_counts: [255, 0, 0, 0, 0, 0],
-            values_contained: 255
+            symbol_counts: [255, 1, 0, 0, 0, 0],
+            values_contained: 256
         });
         
         //late split
@@ -426,22 +419,21 @@ mod tests {
         }
         block.insert_and_count(255, 1);
         let new_block: RLEBlock = block.split();
-        let mut runs = ArrayVec::<(u8, u8), CAPACITY_BUFFER>::new();
-        runs.try_extend_from_slice(&vec![(0, 128), (0, 127)]).unwrap();
+        let mut runs = ArrayVec::<u16, CAPACITY_BUFFER>::new();
+        runs.try_extend_from_slice(&vec![encode_run(0, 255)]).unwrap();
         assert_eq!(block, RLEBlock {
             runs,
             symbol_counts: [255, 0, 0, 0, 0, 0],
             values_contained: 255
         });
-        let mut runs = ArrayVec::<(u8, u8), CAPACITY_BUFFER>::new();
-        runs.try_extend_from_slice(&vec![(1, 1), (0, 1)]).unwrap();
+        let mut runs = ArrayVec::<u16, CAPACITY_BUFFER>::new();
+        runs.try_extend_from_slice(&vec![encode_run(1, 1), encode_run(0, 1)]).unwrap();
         assert_eq!(new_block, RLEBlock {
             runs,
             symbol_counts: [1, 1, 0, 0, 0, 0],
             values_contained: 2
         });
     }
-    */
 
     #[test]
     fn test_to_vec() {
