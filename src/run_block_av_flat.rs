@@ -38,16 +38,7 @@ impl Default for RLEBlock {
         }
     }
 }
-/*
-#[inline] 
-fn calc_run_bytes(count: u64) -> usize {
-    if count < (1_u64 << 13) {
-        1
-    } else {
-        2
-    }
-}
-*/
+
 #[inline]
 fn encode_run(symbol: u8, count: u16) -> u16 {
     //assert!(count < (1_u16 << 13));
@@ -115,18 +106,19 @@ impl RLEBlock {
         //now iterate
         let mut i: usize = 0;
         let mut run: (u8, u16) = (0, 0);
-        while pos_end < position {
-            //get the symbol and the added counts
-            run = decode_run(self.runs[i]);
-
-            //add the count to the total so far
-            total_counts[run.0 as usize] += run.1 as u64;
-            pos_end += run.1 as u64;
-            i += 1;
+        unsafe {
+            while pos_end < position {
+                //get the symbol and the added counts
+                run = decode_run(*self.runs.get_unchecked(i));
+                
+                //add the count to the total so far
+                *total_counts.get_unchecked_mut(run.0 as usize) += run.1 as u64;
+                pos_end += run.1 as u64;
+                i += 1;
+            }
+            //we potentially went past the target, so subtract those back out
+            *total_counts.get_unchecked_mut(run.0 as usize) -= pos_end - position;
         }
-        //we potentially went past the target, so subtract those back out
-        total_counts[run.0 as usize] -= pos_end - position;
-        
         //return the accumulated counts for the symbol we care about
         total_counts[symbol as usize]
     }
@@ -167,42 +159,49 @@ impl RLEBlock {
         //now iterate
         let mut i: usize = 0;
         let mut run: (u8, u16) = (VC_LEN as u8, 0);
-        while pos_end < position {
-            //get the symbol and the added counts
-            run = decode_run(self.runs[i]);
-
-            //add the count to the total so far
-            total_counts[run.0 as usize] += run.1 as u64;
-            pos_end += run.1 as u64;
-            i += 1;
+        unsafe {
+            while pos_end < position {
+                //get the symbol and the added counts
+                run = decode_run(*self.runs.get_unchecked(i));
+                
+                //add the count to the total so far
+                *total_counts.get_unchecked_mut(run.0 as usize) += run.1 as u64;
+                pos_end += run.1 as u64;
+                i += 1;
+            }
+            //we potentially went past the target, so subtract those back out
+            *total_counts.get_unchecked_mut(run.0 as usize) -= pos_end - position;
         }
-
-        //we potentially went past the target, so subtract those back out
-        total_counts[run.0 as usize] -= pos_end - position;
 
         //first, find the end of the run we're currently in
         if run.0 == symbol {
-            //the run we're looking at is the same as what we're inserting
-            self.increment_run(i-1);
-        } else if position < pos_end {
-            //our insert is in the middle of the run and different, we need to split the run
-            let counts_after: u16 = (pos_end - position) as u16;
-            let counts_before: u16 = run.1 - counts_after;
-            self.runs[i-1] = encode_run(run.0, counts_before);
-
-            //let new_length = 1+calc_run_bytes(counts_before)+calc_run_bytes(counts_after) - run.2;
-            let new_length = 2;
-
-            //this method only shifts the values once, so more efficient than double insert
-            self.runs.try_extend_from_slice(&vec![0; new_length]).unwrap();
-            for j in (i+new_length..self.runs.len()).rev() {
-                self.runs[j] = self.runs[j-new_length];
+            unsafe {
+                //the run we're looking at is the same as what we're inserting
+                self.increment_run(i-1);
             }
-            self.runs[i] = encode_run(symbol, 1);
-            self.runs[i+1] = encode_run(run.0, counts_after);
+        } else if position < pos_end {
+            unsafe {
+                //our insert is in the middle of the run and different, we need to split the run
+                let counts_after: u16 = (pos_end - position) as u16;
+                let counts_before: u16 = run.1 - counts_after;
+                *self.runs.get_unchecked_mut(i-1) = encode_run(run.0, counts_before);
+
+                
+                //this method only shifts the values once, so more efficient than double insert
+                let new_length = 2;
+                self.runs.push_unchecked(0);
+                self.runs.push_unchecked(0);
+                for j in (i+new_length..self.runs.len()).rev() {
+                    *self.runs.get_unchecked_mut(j) = *self.runs.get_unchecked(j-new_length);
+                }
+                *self.runs.get_unchecked_mut(i) = encode_run(symbol, 1);
+                *self.runs.get_unchecked_mut(i+1) = encode_run(run.0, counts_after);
+            }
         } else if i < self.runs.len() && (self.runs[i] & SYMBOL_MASK) as u8 == symbol {
-            //right on a run boundary AND the next run matches our symbol, so increment the next run
-            self.increment_run(i);
+            unsafe {
+                //right on a run boundary AND the next run matches our symbol, so increment the next run
+                self.increment_run(i);
+            }
         } else {
             //right on a position boundary (or at the very end) and the next run does not match, so do an insert
             //self.runs.insert(i, symbol | SINGLE_COUNT);
@@ -213,28 +212,18 @@ impl RLEBlock {
         //return the accumulated counts for the symbol we care about
         total_counts[symbol as usize]
     }
-
+    
+    /// Safety: this does not check that the run_index is valid
     #[inline]
-    fn increment_run(&mut self, run_index: usize) {
-        /*
-        let curr_run = decode_run(&self.runs[run_index..]);
-        let curr_bytes = curr_run.2;
-        let next_bytes = calc_run_bytes(curr_run.1+1);
-        
-        for _ in 0..next_bytes-curr_bytes {
-            self.runs.insert(run_index+1, 0);
-        }
-
-        encode_run(&mut self.runs[run_index..], curr_run.0, curr_run.1+1);
-        */
+    unsafe fn increment_run(&mut self, run_index: usize) {
         //increment
-        let overflow = self.runs[run_index].overflowing_add(SINGLE_COUNT);
-        self.runs[run_index] = overflow.0;
+        let overflow = self.runs.get_unchecked(run_index).overflowing_add(SINGLE_COUNT);
+        *self.runs.get_unchecked_mut(run_index) = overflow.0;
         if unlikely(overflow.1) {
             println!("split");
             //if it overflows, split into two halfs at the same position
-            self.runs[run_index] |= HALF_FULL;
-            self.runs.insert(run_index+1, self.runs[run_index]);
+            *self.runs.get_unchecked_mut(run_index) |= HALF_FULL;
+            self.runs.insert(run_index+1, *self.runs.get_unchecked(run_index));
         }
     }
     
@@ -271,43 +260,6 @@ impl RLEBlock {
         }
         self.values_contained -= new_block_size;
         ret
-        
-        /*
-        //first figure out what this block will change to
-        let mut breakpoint = 0;
-        let mut block_counts: [u64; VC_LEN] = [0; VC_LEN];
-        while breakpoint < self.runs.len() / 2 {
-            let run = decode_run(&self.runs[breakpoint..]);
-            block_counts[run.0 as usize] += run.1;
-            breakpoint += 1;
-        }
-        let block_size: u64 = block_counts.iter().sum();
-
-        //now figure out the new block
-        let new_block_size: u64 = self.values_contained - block_size;
-        let mut new_block_counts: [u64; VC_LEN] = [0; VC_LEN];
-        for (i, &bc) in block_counts.iter().enumerate() {
-            new_block_counts[i] = self.symbol_counts[i] - bc;
-        }
-        let new_runs_data: ArrayVec<u16, CAPACITY_BUFFER> = self.runs.drain(breakpoint..).collect();
-        //let mut new_runs_data: ArrayVec<u8, CAPACITY_BUFFER> = Default::default();
-        //new_runs_data.try_extend_from_slice(&self.runs[breakpoint..]).unwrap();
-        //self.runs.truncate(breakpoint);
-
-        //build the block
-        let ret: RLEBlock = RLEBlock {
-            runs: new_runs_data,
-            symbol_counts: new_block_counts,
-            values_contained: new_block_size
-        };
-
-        //finally update this block
-        self.symbol_counts = block_counts;
-        self.values_contained = block_size;
-
-        //now return
-        ret
-        */
     }
 
     /// Returns a vector representation of the contained data, one symbol per entry
@@ -408,7 +360,9 @@ mod tests {
         let mut block: RLEBlock = Default::default();
         block.insert_and_count(0, 0);
         for _ in 0..256 {
-            block.increment_run(0);
+            unsafe {
+                block.increment_run(0);
+            }
         }
 
         let correct_data = vec![0; 257];//vec![(0, 129), (0, 128)];
