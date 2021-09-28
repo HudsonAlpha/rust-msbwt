@@ -2,7 +2,7 @@
 extern crate arrayvec;
 
 use arrayvec::ArrayVec;
-use likely_stable::{likely,unlikely};
+use likely_stable::unlikely;
 
 use crate::run_block_av_flat::{VC_LEN, MAX_BLOCK_SIZE, RLEBlock}; // current best
 //use crate::run_block_av_flat1::{VC_LEN, MAX_BLOCK_SIZE, RLEBlock}; // current best
@@ -466,11 +466,11 @@ impl RLEBPlusTree {
     /// ```
     pub fn run_iter(&self) -> RLEBPlusTreeRunIterator<'_> {
         let next_child_index = self.next_child[0];
-        //let current_block_iter = self.data_arena[0].raw_iter();
+        let current_block_iter = Box::new(self.data_arena[0].run_iter());
         RLEBPlusTreeRunIterator {
             tree: self,
             next_child_index,
-            //current_block_iter,
+            current_block_iter,
             next_sym: 0,
             next_count: 0
         }
@@ -516,7 +516,7 @@ impl<'a> Iterator for RLEBPlusTreeIterator<'a> {
 pub struct RLEBPlusTreeRunIterator<'a> {
     tree: &'a RLEBPlusTree,
     next_child_index: usize,
-    //current_block_iter: std::slice::Iter<'a, (u8, u8)>,
+    current_block_iter: Box<dyn Iterator<Item=(u8, u64)> + 'a>, //std::slice::Iter<'a, (u8, u64)>,
     next_sym: u8,
     next_count: u64
 }
@@ -525,8 +525,7 @@ impl<'a> Iterator for RLEBPlusTreeRunIterator<'a> {
     type Item = (u8, u64);
     /// Will return the next run contained by the compressed B+ tree data
     fn next(&mut self) -> Option<(u8, u64)> {
-        None
-        /*
+        //None
         loop {
             let next_pair = match self.current_block_iter.next() {
                 //current block has data, so return it
@@ -538,7 +537,7 @@ impl<'a> Iterator for RLEBPlusTreeRunIterator<'a> {
                         None
                     } else {
                         //get the next block iterator and update the next child index before returning a value
-                        self.current_block_iter = self.tree.data_arena[self.next_child_index].raw_iter();
+                        self.current_block_iter = Box::new(self.tree.data_arena[self.next_child_index].run_iter());
                         self.next_child_index = self.tree.next_child[self.next_child_index];
 
                         //this *should* always work given our current setup, there shouldn't be any empty
@@ -549,7 +548,7 @@ impl<'a> Iterator for RLEBPlusTreeRunIterator<'a> {
             };
 
             match next_pair {
-                Some(&pair_values) => {
+                Some(pair_values) => {
                     //check if this run matches the ongoing run
                     if pair_values.0 == self.next_sym {
                         //part of the same run, increment and loop back
@@ -578,7 +577,6 @@ impl<'a> Iterator for RLEBPlusTreeRunIterator<'a> {
                 }
             }
         }
-        */
     }
 }
 
@@ -734,7 +732,7 @@ mod tests {
     fn test_run_iter() {
         //this test is needed to make sure we are testing the run iterations across data blocks
         let mut tree: RLEBPlusTree = Default::default();
-        let total_symbols = MAX_BLOCK_SIZE*256*MAX_NODE_SIZE;
+        let total_symbols = MAX_BLOCK_SIZE*256*64*MAX_NODE_SIZE;
         for _ in 0..total_symbols {
             let _post_count = tree.insert_and_count(0, 0);
         }

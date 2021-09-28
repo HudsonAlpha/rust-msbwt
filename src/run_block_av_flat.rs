@@ -1,6 +1,6 @@
 
 use arrayvec::ArrayVec;
-use likely_stable::{likely,unlikely};
+use likely_stable::unlikely;
 
 /// This is the number of bytes used for data storage.
 /// When it reaches this size, the block should be split to avoid issues.
@@ -389,7 +389,6 @@ mod tests {
             values_contained: 257
         });
 
-        
         //early split
         let mut block: RLEBlock = Default::default();
         for _ in 0..256 {
