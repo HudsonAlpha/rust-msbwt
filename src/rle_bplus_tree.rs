@@ -37,7 +37,7 @@ struct RLEBPlusNode {
     /// stores the individual symbol counts for that child node and all its children
     total_symbols: ArrayVec<[u64; VC_LEN], MAX_NODE_SIZE>,
     /// the indices of any child nodes; if it's a leaf this refers to RLEBlocks, otherwise other RLEBPlusNodes
-    children: Vec<usize>
+    children: ArrayVec<usize, MAX_NODE_SIZE>
 }
 
 impl RLEBPlusNode {
@@ -83,6 +83,8 @@ impl Default for RLEBPlusTree {
     #[inline]
     fn default() -> Self {
         let children: Vec<RLEBlock> = vec![Default::default()];
+        let mut child_indices: ArrayVec<usize, MAX_NODE_SIZE> = Default::default();
+        child_indices.push(0);
         let mut total_counts = ArrayVec::<u64, MAX_NODE_SIZE>::new();
         total_counts.push(0);
         let mut total_symbols = ArrayVec::<[u64; VC_LEN], MAX_NODE_SIZE>::new();
@@ -92,7 +94,7 @@ impl Default for RLEBPlusTree {
             parent: 0,
             total_counts,
             total_symbols,
-            children: vec![0]
+            children: child_indices
         };
 
         RLEBPlusTree {
