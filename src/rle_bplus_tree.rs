@@ -734,7 +734,7 @@ mod tests {
     fn test_run_iter() {
         //this test is needed to make sure we are testing the run iterations across data blocks
         let mut tree: RLEBPlusTree = Default::default();
-        let total_symbols = MAX_BLOCK_SIZE*256*64*MAX_NODE_SIZE;
+        let total_symbols = MAX_BLOCK_SIZE*256*MAX_NODE_SIZE;
         for _ in 0..total_symbols {
             let _post_count = tree.insert_and_count(0, 0);
         }
