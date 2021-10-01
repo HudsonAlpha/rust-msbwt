@@ -4,8 +4,7 @@ use likely_stable::unlikely;
 
 /// This is the number of bytes used for data storage.
 /// When it reaches this size, the block should be split to avoid issues.
-//pub const MAX_BLOCK_SIZE: usize = 63; // best for current B+
-pub const MAX_BLOCK_SIZE: usize = 126; // best for current B+
+pub const MAX_BLOCK_SIZE: usize = 254; // best for current B+
 const CAPACITY_BUFFER: usize = MAX_BLOCK_SIZE+2;
 
 /// The number of characters in our alphabet
