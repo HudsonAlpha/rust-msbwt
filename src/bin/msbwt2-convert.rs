@@ -5,10 +5,14 @@ extern crate exitcode;
 
 use clap::{Arg, App, value_t};
 use log::{info, error};
+use mimalloc::MiMalloc;
 use std::fs::File;
 use std::io;
 
 use msbwt2::bwt_converter::{convert_to_vec, save_bwt_numpy};
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
