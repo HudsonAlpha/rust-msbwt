@@ -1,6 +1,6 @@
 
 use arrayvec::ArrayVec;
-use likely_stable::unlikely;
+use likely_stable::{likely,unlikely};
 
 /// This is the number of bytes used for data storage.
 /// When it reaches this size, the block should be split to avoid issues.
@@ -107,7 +107,7 @@ impl RLEBlock {
         let mut i: usize = 0;
         let mut run: (u8, u16) = (0, 0);
         unsafe {
-            while pos_end < position {
+            while likely(pos_end < position) {
                 //get the symbol and the added counts
                 run = decode_run(*self.runs.get_unchecked(i));
                 
@@ -160,7 +160,7 @@ impl RLEBlock {
         let mut i: usize = 0;
         let mut run: (u8, u16) = (VC_LEN as u8, 0);
         unsafe {
-            while pos_end < position {
+            while likely(pos_end < position) {
                 //get the symbol and the added counts
                 run = decode_run(*self.runs.get_unchecked(i));
                 
@@ -218,7 +218,7 @@ impl RLEBlock {
         let overflow = self.runs.get_unchecked(run_index).overflowing_add(SINGLE_COUNT);
         *self.runs.get_unchecked_mut(run_index) = overflow.0;
         if unlikely(overflow.1) {
-            println!("split");
+            //println!("split");
             //if it overflows, split into two halfs at the same position
             *self.runs.get_unchecked_mut(run_index) |= HALF_FULL;
             self.runs.insert(run_index+1, *self.runs.get_unchecked(run_index));
