@@ -2,14 +2,11 @@
 extern crate arrayvec;
 
 use arrayvec::ArrayVec;
-use likely_stable::unlikely;
+use likely_stable::{likely,unlikely};
 
 use crate::run_block_av_flat::{VC_LEN, MAX_BLOCK_SIZE, RLEBlock}; // current best
-//use crate::run_block_av_flat1::{VC_LEN, MAX_BLOCK_SIZE, RLEBlock}; // current best
-//use crate::run_block_av_flat2::{VC_LEN, MAX_BLOCK_SIZE, RLEBlock}; // current best
 
-//const MAX_NODE_SIZE: usize = 64; // must be a power of 2
-const MAX_NODE_SIZE: usize = 64; // temporarily reducing for debugging
+const MAX_NODE_SIZE: usize = 64; // must be a power of 2
 const NODE_MIDPOINT: usize = MAX_NODE_SIZE / 2;
 
 /// A B+ tree structure that has special functionality to encode runs of the same symbol in a defined alphabet
@@ -161,12 +158,9 @@ impl RLEBPlusTree {
         let mut total_count: u64 = 0;
             
         //iterate downwards until we find a leaf node point to run blocks
-        while !current_node.is_leaf {
+        while likely(!current_node.is_leaf) {
             //linear search tended to be faster in practice
-            let search_result: (usize, u64, u64) = current_node.count(relative_index, value);
-            let bs_index = search_result.0;
-            let sc = search_result.1;
-            let tc = search_result.2;
+            let (bs_index, sc, tc) = current_node.count(relative_index, value);
 
             //add symbol count to the running total
             total_count += sc;
@@ -179,10 +173,7 @@ impl RLEBPlusTree {
         }
 
         //we're in a leaf, still need to search for the data node
-        let search_result: (usize, u64, u64) = current_node.count(relative_index, value);
-        let bs_index = search_result.0;
-        let sc = search_result.1;
-        let tc = search_result.2;
+        let (bs_index, sc, tc) = current_node.count(relative_index, value);
         
         //add symbol count to the running total
         total_count += sc;
@@ -227,10 +218,7 @@ impl RLEBPlusTree {
         //iterate downwards until we find a leaf node point to run blocks
         while !current_node.is_leaf {
             //linear search tended to be faster in practice
-            let search_result: (usize, u64, u64) = current_node.insert_and_count(relative_index, value);
-            let bs_index = search_result.0;
-            let sc = search_result.1;
-            let tc = search_result.2;
+            let (bs_index, sc, tc) = current_node.insert_and_count(relative_index, value);
 
             //add symbol count to the running total
             total_count += sc;
@@ -243,10 +231,7 @@ impl RLEBPlusTree {
         }
 
         //we're in a leaf, get the leaf index and then the arena index for the data node
-        let search_result: (usize, u64, u64) = current_node.insert_and_count(relative_index, value);
-        let bs_index = search_result.0;
-        let sc = search_result.1;
-        let tc = search_result.2;
+        let (bs_index, sc, tc) = current_node.insert_and_count(relative_index, value);
         
         //add symbol count to the running total
         total_count += sc;
