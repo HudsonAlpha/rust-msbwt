@@ -18,10 +18,10 @@ fn main() {
     //initialize logging for our benefit later
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    let matches = App::new("fastleng")
+    let matches = App::new("msbwt2 BWT Builder")
         .version(VERSION.unwrap_or("?"))
         .author("J. Matthew Holt <jholt@hudsonalpha.org>")
-        .about("fastleng - a sequence length statistics generator for fastx files")
+        .about("msbwt2 BWT Builder - will construct a BWT from one or more FASTX files")
         .arg(
             Arg::with_name("out_bwt")
             .short("o")

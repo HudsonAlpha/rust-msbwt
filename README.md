@@ -44,11 +44,11 @@ However, it is easier to use with different file types requires only `msbwt2` to
 ```
 msbwt2-build \
     -o comp_msbwt.npy \
-    reads.fq.gz
+    reads.fq.gz [reads2.fq.gz ...]
 ```
-2. Using an external tool and feeding that to `msbwt2-convert`. This approach tends to be faster currently.  However, the following command is more complex, less flexible file typing, and requires the [ropebwt2](https://github.com/lh3/ropebwt2) executable (or a similar tool) to be installed:
+2. Using an external tool and feeding that to `msbwt2-convert`. This approach tends to be faster currently.  However, the following command is more complex, less flexible file typing (requiring FASTQ in this example), and requires the [ropebwt2](https://github.com/lh3/ropebwt2) executable (or a similar tool) to be installed:
 ```
-gunzip -c reads.fq.gz | \
+gunzip -c reads.fq.gz [read2.fq.gz ...] | \
     awk 'NR % 4 == 2' | \
     sort | \
     tr NT TN | \
