@@ -21,7 +21,7 @@ fn main() {
     let matches = App::new("msbwt2 BWT Builder")
         .version(VERSION.unwrap_or("?"))
         .author("J. Matthew Holt <jholt@hudsonalpha.org>")
-        .about("msbwt2 BWT Builder - will construct a MSBWT from one or more FASTX files")
+        .about("msbwt2 BWT Builder - will construct a BWT from one or more FASTX files")
         .arg(
             Arg::with_name("out_bwt")
             .short("o")
