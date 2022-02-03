@@ -597,12 +597,10 @@ mod tests {
         assert_eq!(tree.to_vec(), data);
         assert_eq!(tree.into_iter().collect::<Vec<u8>>(), data);
 
-        /*
         //check the pairs since this is in-order
         let runs: Vec<(u8, u64)> = vec![(0, 1), (1, 3), (2, 1), (0, 1), (2, 1), (3, 1), (4, 1), (1, 3), (0, 1)];
         let full_pairing = tree.run_iter().collect::<Vec<(u8, u64)>>();
         assert_eq!(full_pairing, runs);
-        */
     }
 
     #[test]
@@ -621,12 +619,10 @@ mod tests {
         }
         assert_eq!(tree.to_vec(), data);
         
-        /*
         //check the pairs since this is in-order
         let runs: Vec<(u8, u64)> = vec![(3, 1), (0, 1), (3, 1), (0, 1), (5, 1), (2, 1), (5, 1), (2, 1), (3, 1), (1, 1), (2, 1)];
         let full_pairing = tree.run_iter().collect::<Vec<(u8, u64)>>();
         assert_eq!(full_pairing, runs);
-        */
     }
 
     #[test]
