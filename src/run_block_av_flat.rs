@@ -17,7 +17,9 @@ const HALF_FULL: u16 = 0x8000;
 /// Stores the set bits for a single count block e.g. 1 << 3
 const SINGLE_COUNT: u16 = 0x0008;
 
-/// A run-length encoded block of data implemented with an ArrayVec
+/// A run-length encoded block of data implemented with an ArrayVec.
+/// Each run is encoded as a 2-byte block with 3 bits for the symbol, and 13 for the length.
+/// While not the most efficient for storage, in practice it is more efficient for encode/decode during construction.
 #[derive(Clone,Debug,PartialEq)]
 pub struct RLEBlock {
     runs: ArrayVec<u16, CAPACITY_BUFFER>,
@@ -41,7 +43,7 @@ impl Default for RLEBlock {
 #[inline]
 fn encode_run(symbol: u8, count: u16) -> u16 {
     //assert!(count < (1_u16 << 13));
-    //1 bit for length, 3 bits for symbol, leaves 16-4 = 12 for length
+    //3 bits for symbol, leaves 16-3 = 13 for length
     (symbol as u16) | (count << SYMBOL_BITS) as u16
 }
 
