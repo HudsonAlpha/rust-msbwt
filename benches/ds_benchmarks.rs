@@ -1,5 +1,9 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 use msbwt2::bwt_converter::save_bwt_runs_numpy;
 use msbwt2::dynamic_bwt::DynamicBWT;

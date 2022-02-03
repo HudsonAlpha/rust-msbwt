@@ -2,7 +2,6 @@
 extern crate arrayvec;
 
 use arrayvec::ArrayVec;
-use likely_stable::{likely,unlikely};
 
 use crate::run_block_av_flat::{VC_LEN, MAX_BLOCK_SIZE, RLEBlock}; // current best
 
@@ -158,7 +157,7 @@ impl RLEBPlusTree {
         let mut total_count: u64 = 0;
             
         //iterate downwards until we find a leaf node point to run blocks
-        while likely(!current_node.is_leaf) {
+        while !current_node.is_leaf {
             //linear search tended to be faster in practice
             let (bs_index, sc, tc) = current_node.count(relative_index, value);
 
@@ -255,7 +254,7 @@ impl RLEBPlusTree {
         //check if the block is big enough to get split
         let mut current_node_index = node_index;
         let current_node = &mut self.nodes[current_node_index];
-        if unlikely(self.data_arena[arena_index].block_len() >= MAX_BLOCK_SIZE) {
+        if self.data_arena[arena_index].block_len() >= MAX_BLOCK_SIZE {
             //first we need to actually split the block
             let new_block: RLEBlock = self.data_arena[arena_index].split();
             let new_arena_index = self.data_arena.len();
@@ -279,7 +278,7 @@ impl RLEBPlusTree {
             current_node.build_indices();
 
             //recursively push as needed into internal nodes
-            while unlikely(self.nodes[current_node_index].children.len() == MAX_NODE_SIZE) {
+            while self.nodes[current_node_index].children.len() == MAX_NODE_SIZE {
                 assert!(self.nodes[current_node_index].total_counts.len() == MAX_NODE_SIZE);
                 
                 let current_node = &mut self.nodes[current_node_index];
@@ -320,7 +319,7 @@ impl RLEBPlusTree {
                     }
                 }
                 
-                if unlikely(current_node_index == 0) {
+                if current_node_index == 0 {
                     //special things because it's root:
                     //we increase the height and we actually create a full new left child because root needs to be a new node
                     self.height += 1;
