@@ -6,11 +6,15 @@ extern crate log;
 
 use clap::{App, Arg, value_t, values_t};
 use log::{error, info};
+use mimalloc::MiMalloc;
 use std::fs::File;
 
 use msbwt2::bwt_converter::save_bwt_runs_numpy;
 use msbwt2::dynamic_bwt::{create_from_fastx,DynamicBWT};
 use msbwt2::string_util::INT_TO_STRING;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
