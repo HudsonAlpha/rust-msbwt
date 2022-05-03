@@ -1,10 +1,9 @@
-
 extern crate clap;
 extern crate env_logger;
 extern crate exitcode;
 
-use clap::{Arg, App, value_t};
-use log::{info, error};
+use clap::{crate_version, Arg, Command};
+use log::{error, info};
 use mimalloc::MiMalloc;
 use std::fs::File;
 use std::io;
@@ -14,36 +13,34 @@ use msbwt2::bwt_converter::{convert_to_vec, save_bwt_numpy};
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
-const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
-
 fn main() {
-    //initialize logging for our benefit later
+    // initialize logging for our benefit later
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    //this is the CLI block, params that get populated appear before
+    // this is the CLI block, params that get populated appear before
     let mut in_fn: String = "stdin".to_string();
     let bwt_fn: String;
 
-    let matches = App::new("msbwt2 BWT Converter")
-        .version(VERSION.unwrap_or("?"))
+    let matches = Command::new("msbwt2 BWT Converter")
+        .version(crate_version!())
         .author("J. Matthew Holt <jholt@hudsonalpha.org>")
         .about("msbwt2 BWT Converter - this will convert an external BWT to our expected representation")
-        .arg(Arg::with_name("in_fn")
-            .short("i")
+        .arg(Arg::new("in_fn")
+            .short('i')
             .long("--input")
             .takes_value(true)
             .help("The raw uncompressed BWT (default: stdin)"))
-        .arg(Arg::with_name("COMP_MSBWT.NPY")
+        .arg(Arg::new("COMP_MSBWT.NPY")
             .help("The location to store the compressed BWT")
             .required(true)
             .index(1))
         .get_matches();
-    
-    //pull out required values
+
+    // pull out required values
     bwt_fn = matches.value_of("COMP_MSBWT.NPY").unwrap().to_string();
-    
-    //optional values
-    in_fn = value_t!(matches.value_of("in_fn"), String).unwrap_or(in_fn);
+
+    // optional values
+    in_fn = matches.value_of_t("in_fn").unwrap_or(in_fn);
 
     info!("Input parameters (required):");
     info!("\tInput BWT: \"{}\"", in_fn);
@@ -51,9 +48,7 @@ fn main() {
         Box::new(io::stdin())
     } else {
         Box::new(match File::open(&in_fn) {
-            Ok(fp) => {
-                fp
-            },
+            Ok(fp) => fp,
             Err(e) => {
                 error!("Failed to open BWT file: {:?}", e);
                 std::process::exit(exitcode::NOINPUT);
@@ -69,11 +64,11 @@ fn main() {
             std::process::exit(exitcode::NOINPUT);
         }
     };
-    
-    //this is where the work happens
+
+    // this is where the work happens
     let comp_bwt = convert_to_vec(input_reader);
     match save_bwt_numpy(&comp_bwt[..], &bwt_fn) {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             error!("Error saving BWT to file: {:?}", bwt_fn);
             error!("Error: {:?}", e);

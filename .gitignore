@@ -3,3 +3,5 @@ big_test_data
 run_msbwt2_test.sh
 run_rope_test.sh
 test_data/example_output*
+Cargo.lock
+.vscode

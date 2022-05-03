@@ -1,11 +1,15 @@
-
 /// This function will take a collection of strings and naively calculate the MSBWT for those strings.
 /// This process is can be very slow, so this is really only useful for small datasets and testing simple use cases to verify correctness.
+///
 /// # Arguments
+///
 /// * `inputs` - the collection of strings to get converted into a MSBWT
+///
 /// # Examples
+///
 /// ```rust
 /// use msbwt2::bwt_util::naive_bwt;
+///
 /// let data: Vec<&str> = vec!["CCGT", "N", "ACG"];
 /// let bwt_stream = naive_bwt(&data);
 /// assert_eq!(bwt_stream, "GTN$$ACCC$G");
@@ -13,20 +17,18 @@
 pub fn naive_bwt(inputs: &[&str]) -> String {
     let mut rotations: Vec<String> = vec![];
     for s in inputs.iter() {
-        let dollar_string = s.to_string()+&"$".to_string();
+        let dollar_string = s.to_string() + &"$".to_string();
         for l in 0..dollar_string.len() {
             rotations.push(
-                //we have to loop the string twice in the event they are not all equal lengths to break
-                dollar_string[l..].to_string()+
-                &dollar_string+
-                &dollar_string[..l]
+                // we have to loop the string twice in the event they are not all equal lengths to break
+                dollar_string[l..].to_string() + &dollar_string + &dollar_string[..l],
             );
         }
     }
     rotations.sort();
     let mut ret: String = String::with_capacity(rotations.len());
     for r in rotations.iter() {
-        ret.push(r.as_bytes()[r.len()-1] as char);
+        ret.push(r.as_bytes()[r.len() - 1] as char);
     }
     ret
 }
