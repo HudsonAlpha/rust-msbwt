@@ -13,7 +13,7 @@
 pub fn naive_bwt(inputs: &[&str]) -> String {
     let mut rotations: Vec<String> = vec![];
     for s in inputs.iter() {
-        let dollar_string = s.to_string()+&"$".to_string();
+        let dollar_string = s.to_string()+"$";
         for l in 0..dollar_string.len() {
             rotations.push(
                 //we have to loop the string twice in the event they are not all equal lengths to break
