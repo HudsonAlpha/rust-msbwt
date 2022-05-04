@@ -1,3 +1,4 @@
+
 extern crate clap;
 extern crate env_logger;
 extern crate exitcode;
@@ -16,7 +17,7 @@ use msbwt2::string_util::INT_TO_STRING;
 static GLOBAL: MiMalloc = MiMalloc;
 
 fn main() {
-    // initialize logging for our benefit later
+    //initialize logging for our benefit later
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let matches = Command::new("msbwt2 BWT Builder")
@@ -40,10 +41,8 @@ fn main() {
         .get_matches();
 
     let fastx_fns: Vec<String> = matches.values_of_t("FASTX").unwrap_or_else(|_| vec![]);
-    let out_fn: String = matches
-        .value_of_t("out_bwt")
-        .unwrap_or_else(|_| "stdout".to_string());
-    // TODO: make this a command line option
+    let out_fn: String = matches.value_of_t("out_bwt").unwrap_or_else(|_| "stdout".to_string());
+    //TODO: make this a command line option
     let unsorted_strings: bool = matches.value_of_t("unsorted").unwrap_or(false);
     let sorted_strings: bool = !unsorted_strings;
 
@@ -59,7 +58,7 @@ fn main() {
         }
     );
 
-    // check inputs
+    //check inputs
     for fastx_fn in fastx_fns.iter() {
         match File::open(fastx_fn) {
             Ok(_) => {}
@@ -71,7 +70,7 @@ fn main() {
         };
     }
 
-    // check outputs
+    //check outputs
     if out_fn != "stdout" {
         match File::create(&out_fn) {
             Ok(file) => file,
@@ -83,7 +82,7 @@ fn main() {
         };
     }
 
-    // create the BWT
+    //create the BWT
     let bwt: DynamicBWT = match create_from_fastx(&fastx_fns, sorted_strings) {
         Ok(result) => result,
         Err(e) => {
@@ -93,7 +92,7 @@ fn main() {
         }
     };
 
-    // this is what we should put in the file
+    //this is what we should put in the file
     if out_fn == "stdout" {
         for sym in bwt.iter() {
             print!("{}", INT_TO_STRING[sym as usize] as char);

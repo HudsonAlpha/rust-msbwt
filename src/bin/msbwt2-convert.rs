@@ -1,3 +1,4 @@
+
 extern crate clap;
 extern crate env_logger;
 extern crate exitcode;
@@ -37,7 +38,6 @@ fn main() {
 
     //pull out required values
     let bwt_fn: String = matches.value_of("COMP_MSBWT.NPY").unwrap().to_string();
-
     //optional values
     in_fn = matches.value_of_t("in_fn").unwrap_or(in_fn);
 
@@ -63,7 +63,6 @@ fn main() {
             std::process::exit(exitcode::NOINPUT);
         }
     };
-
     //this is where the work happens
     let comp_bwt = convert_to_vec(input_reader);
     match save_bwt_numpy(&comp_bwt[..], &bwt_fn) {
