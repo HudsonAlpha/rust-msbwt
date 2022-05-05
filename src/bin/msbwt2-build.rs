@@ -32,6 +32,12 @@ fn main() {
                 .help("The output BWT (default: stdout)"),
         )
         .arg(
+            Arg::new("sorted")
+                .short('s')
+                .long("--sorted")
+                .help("Add sequences lexicographically in the BWT (default: false)")
+        )
+        .arg(
             Arg::new("FASTX")
                 .help("The FASTQ/A file(s) to load into the BWT, gzip accepted")
                 .required(true)
@@ -42,9 +48,7 @@ fn main() {
 
     let fastx_fns: Vec<String> = matches.values_of_t("FASTX").unwrap_or_else(|_| vec![]);
     let out_fn: String = matches.value_of_t("out_bwt").unwrap_or_else(|_| "stdout".to_string());
-    //TODO: make this a command line option
-    let unsorted_strings: bool = matches.value_of_t("unsorted").unwrap_or(false);
-    let sorted_strings: bool = !unsorted_strings;
+    let sorted_strings: bool = matches.is_present("sorted");
 
     info!("Input parameters (required):");
     info!("\tFASTX: {:?}", fastx_fns);
