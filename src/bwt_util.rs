@@ -1,18 +1,21 @@
-
-use std::collections::HashMap;
-use std::hash::Hash;
-use std::clone::Clone;
-use std::fmt::Debug;
 use bitvec::prelude::*;
 use itertools::Itertools;
-
+use std::clone::Clone;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::hash::Hash;
 
 /// implementation of the mergeIter function as described in Holt & McMillan 2014
 /// Takes the current state of the interleave bitvector, the two burrows wheeler
 /// transform slices, and a mapping from character to number of lexigraphically
 /// smaller characters in the BWTs provided and does a round of interleave
 /// resolution
-pub fn pairwise_merge_iter<T: Ord + Hash + Clone + Debug>(current_interleave: &BitVec<u64, Msb0>, bwt0: &[T], bwt1: &[T], offsets: &HashMap<T, usize>) -> BitVec<u64, Msb0> {
+pub fn pairwise_merge_iter<T: Ord + Hash + Clone + Debug>(
+    current_interleave: &BitVec<u64, Msb0>,
+    bwt0: &[T],
+    bwt1: &[T],
+    offsets: &HashMap<T, usize>,
+) -> BitVec<u64, Msb0> {
     // initial conditions
     let mut next_interleave = bitvec![u64, Msb0; 0; current_interleave.len()];
     let mut current_pos0 = 0usize;
@@ -32,7 +35,9 @@ pub fn pairwise_merge_iter<T: Ord + Hash + Clone + Debug>(current_interleave: &B
             v
         };
         // copy b into the next position for c
-        let next_position = temp_index.get_mut(&c).expect("Unknown character encountered in merging BWTs");
+        let next_position = temp_index
+            .get_mut(&c)
+            .expect("Unknown character encountered in merging BWTs");
         next_interleave.set(*next_position, *b);
         // update the tempIndex to match the FM-index
         *next_position += 1;
@@ -41,13 +46,10 @@ pub fn pairwise_merge_iter<T: Ord + Hash + Clone + Debug>(current_interleave: &B
     next_interleave
 }
 
-
 /// Determines the offset hashmap for a provided slice of BWTs.
 /// The offset hashmap is the mapping from a character to the number of
 /// lexigraphically lesser characters present in the combined string provided.
-fn generate_offset_hashmap<T: Ord + Hash + Clone + Debug>(
-    bwts: &[&[T]],
-) -> HashMap<T, usize>{
+fn generate_offset_hashmap<T: Ord + Hash + Clone + Debug>(bwts: &[&[T]]) -> HashMap<T, usize> {
     let mut num_occurrences: HashMap<T, usize> = HashMap::new();
     for &bwt in bwts.iter() {
         for c in bwt {
@@ -103,7 +105,6 @@ pub fn pairwise_bwt_merge<T: Ord + Hash + Clone + Debug>(bwt0: &[T], bwt1: &[T])
         }
     }
     return_val
-
 }
 
 /// This function will take a collection of strings and naively calculate the MSBWT for those strings.
@@ -120,20 +121,18 @@ pub fn pairwise_bwt_merge<T: Ord + Hash + Clone + Debug>(bwt0: &[T], bwt1: &[T])
 pub fn naive_bwt(inputs: &[&str]) -> String {
     let mut rotations: Vec<String> = vec![];
     for s in inputs.iter() {
-        let dollar_string = s.to_string()+"$";
+        let dollar_string = s.to_string() + "$";
         for l in 0..dollar_string.len() {
             rotations.push(
                 //we have to loop the string twice in the event they are not all equal lengths to break
-                dollar_string[l..].to_string()+
-                &dollar_string+
-                &dollar_string[..l]
+                dollar_string[l..].to_string() + &dollar_string + &dollar_string[..l],
             );
         }
     }
     rotations.sort();
     let mut ret: String = String::with_capacity(rotations.len());
     for r in rotations.iter() {
-        ret.push(r.as_bytes()[r.len()-1] as char);
+        ret.push(r.as_bytes()[r.len() - 1] as char);
     }
     ret
 }
@@ -202,7 +201,6 @@ mod tests {
         let bwt_stream = naive_bwt(&data);
         assert_eq!(bwt_stream, "AACC$A$");
     }
-
 
     #[test]
     fn merging_paper_example_works() {
