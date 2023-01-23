@@ -44,7 +44,7 @@ impl Default for RLEBlock {
 fn encode_run(symbol: u8, count: u16) -> u16 {
     //assert!(count < (1_u16 << 13));
     //3 bits for symbol, leaves 16-3 = 13 for length
-    (symbol as u16) | (count << SYMBOL_BITS) as u16
+    (symbol as u16) | (count << SYMBOL_BITS)
 }
 
 #[inline]
@@ -273,7 +273,7 @@ impl RLEBlock {
             
             //add the run symbol to the vec
             for _ in 0..run.1 {
-                ret.push(run.0 as u8);
+                ret.push(run.0);
             }
             i += 1;
         }

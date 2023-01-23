@@ -239,7 +239,7 @@ impl BWT for RleBWT {
 
         let temp_offset: u64 = ret.l;
         if prev_char == sym {
-            ret.l += input_range.l - bwt_index as u64;
+            ret.l += input_range.l - bwt_index;
         }
 
         //now find the high value

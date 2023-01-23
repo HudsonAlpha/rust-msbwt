@@ -223,7 +223,7 @@ impl BWT for DynamicBWT {
     /// ```
     #[inline]
     fn get_symbol_count(&self, symbol: u8) -> u64 {
-        self.symbol_counts[symbol as usize] as u64
+        self.symbol_counts[symbol as usize]
     }
 
     /// This will return the total number of symbols contained by the BWT
@@ -241,7 +241,7 @@ impl BWT for DynamicBWT {
     /// ```
     #[inline]
     fn get_total_size(&self) -> u64 {
-        self.total_count as u64
+        self.total_count
     }
 
     /// Performs a range constraint on a BWT range. This implicitly represents prepending a character `sym` to a k-mer
