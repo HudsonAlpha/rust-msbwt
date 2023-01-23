@@ -20,7 +20,7 @@ const SINGLE_COUNT: u16 = 0x0008;
 /// A run-length encoded block of data implemented with an ArrayVec.
 /// Each run is encoded as a 2-byte block with 3 bits for the symbol, and 13 for the length.
 /// While not the most efficient for storage, in practice it is more efficient for encode/decode during construction.
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RLEBlock {
     runs: ArrayVec<u16, CAPACITY_BUFFER>,
     symbol_counts: [u64; VC_LEN],

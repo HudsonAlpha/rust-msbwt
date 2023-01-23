@@ -133,11 +133,11 @@ impl BWT for DynamicBWT {
     fn load_numpy_file(&mut self, filename: &str) -> std::io::Result<()> {
         //read the numpy header: http://docs.scipy.org/doc/numpy-1.10.1/neps/npy-format.html
         //get the initial file size
-        let file_metadata: fs::Metadata = fs::metadata(&filename)?;
+        let file_metadata: fs::Metadata = fs::metadata(filename)?;
         let full_file_size: u64 = file_metadata.len();
 
         //read the initial fixed header
-        let mut file = fs::File::open(&filename)?;
+        let mut file = fs::File::open(filename)?;
         let mut init_header: Vec<u8> = vec![0; 10];
         let read_count: usize = file.read(&mut init_header[..])?;
         if read_count != 10 {
@@ -454,7 +454,7 @@ pub fn create_from_fastx<T: std::convert::AsRef<std::path::Path> + std::fmt::Dis
     let mut bwt: DynamicBWT = Default::default();
     info!("Creating BWT from FASTX files...");
     for filename in filenames {
-        let mut reader = parse_fastx_file(&filename)?;
+        let mut reader = parse_fastx_file(filename)?;
 
         //go through all the records
         let initial_string_count = bwt.get_symbol_count(0);
