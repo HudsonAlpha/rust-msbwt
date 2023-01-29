@@ -77,7 +77,7 @@ pub fn generate_offset_hashmap<T: Ord + Hash + Clone + Debug>(bwts: &[&[T]]) -> 
             num_occurrences.entry(c).and_modify(|counter| *counter += 1).or_insert(1);
         }
     }
-    let ordered_chars = num_occurrences.keys().sorted().cloned().cloned().collect::<Vec<T>>();
+    let ordered_chars = num_occurrences.keys().sorted().map(|&c| c.clone()).collect::<Vec<T>>();
     let mut total = 0usize;
     let mut offset_map = HashMap::with_capacity(num_occurrences.len());
     for c in ordered_chars {
