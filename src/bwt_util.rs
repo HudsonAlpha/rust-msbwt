@@ -110,8 +110,6 @@ pub fn generate_offset_hashmap<T: Ord + Hash + Clone + Debug>(bwts: &[&[T]]) -> 
 /// assert_eq!(bwt_stream.as_bytes(), pairwise_stream);
 /// ```
 pub fn pairwise_bwt_merge<T: Ord + Hash + Clone + Debug>(bwt0: &[T], bwt1: &[T]) -> Vec<T> {
-
-
     let total_len = bwt0.len() + bwt1.len();
     let initial_offsets = generate_offset_hashmap(&[bwt0, bwt1]);
 
@@ -246,7 +244,7 @@ mod tests {
         let bwt_stream = naive_bwt(&data);
 
         // run the merging burrows wheeler transforms
-        let mut bwts: Vec<String> = data.iter().map(|s| {naive_bwt(&[s])}).collect::<Vec<_>>();
+        let mut bwts: Vec<String> = data.iter().map(|s| naive_bwt(&[s])).collect::<Vec<_>>();
         let mut current_bwt = bwts.pop().unwrap().as_bytes().to_vec();
         while let Some(next_bwt) = bwts.pop() {
             current_bwt = pairwise_bwt_merge(&current_bwt, next_bwt.as_bytes());
@@ -262,13 +260,11 @@ mod tests {
         test_recursive_merging_result_vs_naive_result(data)
     }
 
-
     #[test]
     fn merging_samples_of_different_size_example_works() {
         let data: Vec<&str> = vec!["ACCA", "CA"];
         test_recursive_merging_result_vs_naive_result(data)
     }
-
 
     #[test]
     fn merging_samples_of_high_similarity_works() {
@@ -277,7 +273,7 @@ mod tests {
         test_recursive_merging_result_vs_naive_result(data1);
 
         // getting smaller in order
-        let data2: Vec<&str> = vec!["AAAAA", "AAAA", "AAA", "AA", "A",];
+        let data2: Vec<&str> = vec!["AAAAA", "AAAA", "AAA", "AA", "A"];
         test_recursive_merging_result_vs_naive_result(data2);
     }
 }
