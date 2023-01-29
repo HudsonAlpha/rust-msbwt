@@ -25,18 +25,18 @@ pub fn pairwise_merge_iter<T: Ord + Hash + Clone + Debug>(
 
     // iterate through each bit
     for b in current_interleave.iter() {
-        let c = if *b {
-            let v = bwt0[current_pos0].clone();
+        let c: &T = if *b {
+            let v = &bwt0[current_pos0];
             current_pos0 += 1;
             v
         } else {
-            let v = bwt1[current_pos1].clone();
+            let v = &bwt1[current_pos1];
             current_pos1 += 1;
             v
         };
         // copy b into the next position for c
         let next_position = temp_index
-            .get_mut(&c)
+            .get_mut(c)
             .expect("Unknown character encountered in merging BWTs");
         next_interleave.set(*next_position, *b);
         // update the tempIndex to match the FM-index
@@ -72,21 +72,39 @@ fn generate_offset_hashmap<T: Ord + Hash + Clone + Debug>(bwts: &[&[T]]) -> Hash
 
 /// Merges two Burrows-Wheeler transformed slices into a new, merged Burrows-Wheeler
 /// slice.
+/// # Arguments
+/// * `bwt0` - the collection of strings to get converted into a MSBWT
+/// * `bwt1` - the collection of strings to get converted into a MSBWT
+/// # Examples
+/// ```rust
+/// use msbwt2::bwt_util::naive_bwt;
+/// use msbwt2::bwt_util::pairwise_bwt_merge;
+///
+/// let data: Vec<&str> = vec!["CCGT", "ACG"];
+///
+/// let bwt_stream = naive_bwt(&data);
+///
+/// let bwts: Vec<String> = data.into_iter().map(|s| {naive_bwt(&[s])}).collect::<Vec<_>>();
+/// let pairwise_stream = pairwise_bwt_merge(bwts[0].as_bytes(), bwts[1].as_bytes());
+/// assert_eq!(bwt_stream.as_bytes(), pairwise_stream);
+/// ```
 pub fn pairwise_bwt_merge<T: Ord + Hash + Clone + Debug>(bwt0: &[T], bwt1: &[T]) -> Vec<T> {
+
+
     let total_len = bwt0.len() + bwt1.len();
     let initial_offsets = generate_offset_hashmap(&[bwt0, bwt1]);
 
     let mut interleave = bitvec![u64, Msb0; 0; total_len];
     // initialize ret array to 0s followed by 1s
     let mut final_interleave = bitvec![u64, Msb0; 0; total_len];
-    for i in bwt0.len()..total_len {
+    for i in 0..bwt0.len() {
         // TODO - figure out if there's a way to do this faster than iterating through each element
         // and setting them one by one. (BitVec should have option to do a bitwise OR)
         final_interleave.set(i, true)
     }
     while interleave != final_interleave {
         // copy the old interleaving and re-iterate
-        interleave = final_interleave.clone();
+        interleave = final_interleave;
         final_interleave = pairwise_merge_iter(&interleave, bwt0, bwt1, &initial_offsets);
     }
 
@@ -202,11 +220,43 @@ mod tests {
         assert_eq!(bwt_stream, "AACC$A$");
     }
 
+    fn test_recursive_merging_result_vs_naive_result(data: Vec<&str>) {
+        // run the naive burrow wheeler transform
+        let bwt_stream = naive_bwt(&data);
+
+        // run the merging burrows wheeler transforms
+        let mut bwts: Vec<String> = data.iter().map(|s| {naive_bwt(&[s])}).collect::<Vec<_>>();
+        let mut current_bwt = bwts.pop().unwrap().as_bytes().to_vec();
+        while let Some(next_bwt) = bwts.pop() {
+            current_bwt = pairwise_bwt_merge(&current_bwt, next_bwt.as_bytes());
+        }
+
+        // make sure they're identical
+        assert_eq!(bwt_stream.as_bytes(), current_bwt);
+    }
+
     #[test]
     fn merging_paper_example_works() {
-        let bwt0 = "AC$CA".as_bytes();
-        let bwt1 = "AAAC$".as_bytes();
-        let merged_bwt = pairwise_bwt_merge(bwt0, bwt1);
-        assert_eq!(merged_bwt, "AACAAC$C$A".as_bytes())
+        let data: Vec<&str> = vec!["ACCA", "CAAA"];
+        test_recursive_merging_result_vs_naive_result(data)
+    }
+
+
+    #[test]
+    fn merging_samples_of_different_size_example_works() {
+        let data: Vec<&str> = vec!["ACCA", "CA"];
+        test_recursive_merging_result_vs_naive_result(data)
+    }
+
+
+    #[test]
+    fn merging_samples_of_high_similarity_works() {
+        // getting bigger in order
+        let data1: Vec<&str> = vec!["A", "AA", "AAA", "AAAA", "AAAAA"];
+        test_recursive_merging_result_vs_naive_result(data1);
+
+        // getting smaller in order
+        let data2: Vec<&str> = vec!["AAAAA", "AAAA", "AAA", "AA", "A",];
+        test_recursive_merging_result_vs_naive_result(data2);
     }
 }
