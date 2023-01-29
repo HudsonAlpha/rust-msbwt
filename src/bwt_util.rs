@@ -10,6 +10,14 @@ use std::hash::Hash;
 /// transform slices, and a mapping from character to number of lexigraphically
 /// smaller characters in the BWTs provided and does a round of interleave
 /// resolution
+///
+/// # Arguments
+/// * `current_interleave` - The bitvector indicating which bin the corresponding character in the
+///                          merge currently lies.
+/// * `bwt0`               - The first burrows wheeler transform
+/// * `bwt1`               - The second burrows wheeler transform
+/// * `offsets`            - A mapping of a key of type ``T`` to the number of elements of ``T``
+///                          in the bwt that are smaller than the key.
 pub fn pairwise_merge_iter<T: Ord + Hash + Clone + Debug>(
     current_interleave: &BitVec<u64, Msb0>,
     bwt0: &[T],
@@ -49,7 +57,20 @@ pub fn pairwise_merge_iter<T: Ord + Hash + Clone + Debug>(
 /// Determines the offset hashmap for a provided slice of BWTs.
 /// The offset hashmap is the mapping from a character to the number of
 /// lexigraphically lesser characters present in the combined string provided.
-fn generate_offset_hashmap<T: Ord + Hash + Clone + Debug>(bwts: &[&[T]]) -> HashMap<T, usize> {
+///
+/// # Arguments
+/// * `bwts` - the collection of strings that will be used in producing a MSBWT.
+/// # Examples
+/// ```rust
+/// use msbwt2::bwt_util::generate_offset_hashmap;
+/// use std::collections::HashMap;
+/// let data: Vec<&[u8]> = vec!["CCGT".as_bytes(), "ACG".as_bytes()];
+///
+/// let offsets: HashMap<u8, usize> = generate_offset_hashmap(&data);
+///
+/// assert_eq!(offsets, vec![(b'A', 0), (b'C', 1), (b'G', 4), (b'T', 6)].into_iter().collect::<HashMap<u8, usize>>() );
+/// ```
+pub fn generate_offset_hashmap<T: Ord + Hash + Clone + Debug>(bwts: &[&[T]]) -> HashMap<T, usize> {
     let mut num_occurrences: HashMap<T, usize> = HashMap::new();
     for &bwt in bwts.iter() {
         for c in bwt {
@@ -73,8 +94,8 @@ fn generate_offset_hashmap<T: Ord + Hash + Clone + Debug>(bwts: &[&[T]]) -> Hash
 /// Merges two Burrows-Wheeler transformed slices into a new, merged Burrows-Wheeler
 /// slice.
 /// # Arguments
-/// * `bwt0` - the collection of strings to get converted into a MSBWT
-/// * `bwt1` - the collection of strings to get converted into a MSBWT
+/// * `bwt0` - the first of the BWT values to merge pairwise
+/// * `bwt1` - the second of the BWT values to merge pairwise
 /// # Examples
 /// ```rust
 /// use msbwt2::bwt_util::naive_bwt;
