@@ -71,17 +71,13 @@ pub fn pairwise_merge_iter<T: Ord + Hash + Clone + Debug>(
 /// assert_eq!(offsets, vec![(b'A', 0), (b'C', 1), (b'G', 4), (b'T', 6)].into_iter().collect::<HashMap<u8, usize>>() );
 /// ```
 pub fn generate_offset_hashmap<T: Ord + Hash + Clone + Debug>(bwts: &[&[T]]) -> HashMap<T, usize> {
-    let mut num_occurrences: HashMap<T, usize> = HashMap::new();
+    let mut num_occurrences: HashMap<&T, usize> = HashMap::new();
     for &bwt in bwts.iter() {
         for c in bwt {
-            if let Some(i) = num_occurrences.get_mut(c) {
-                *i += 1;
-            } else {
-                num_occurrences.insert(c.clone(), 1);
-            }
+            num_occurrences.entry(c).and_modify(|counter| *counter += 1).or_insert(1);
         }
     }
-    let ordered_chars = num_occurrences.keys().sorted().cloned().collect::<Vec<T>>();
+    let ordered_chars = num_occurrences.keys().sorted().cloned().cloned().collect::<Vec<T>>();
     let mut total = 0usize;
     let mut offset_map = HashMap::with_capacity(num_occurrences.len());
     for c in ordered_chars {
