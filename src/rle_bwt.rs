@@ -105,7 +105,7 @@ impl BWT for RleBWT {
                 return Err(
                     std::io::Error::new(
                         e.kind(),
-                        format!("Could not read bytes 10-{:?} of header for file {:?}, root-error {:?}", skip_bytes, filename, e)
+                        format!("Could not read bytes 10-{skip_bytes:?} of header for file {filename:?}, root-error {e:?}")
                     )
                 );
             }
@@ -130,7 +130,7 @@ impl BWT for RleBWT {
             return Err(
                 std::io::Error::new(
                     std::io::ErrorKind::UnexpectedEof,
-                    format!("Header indicates shape of {:?}, but remaining file size is {:?}", expected_length, bwt_disk_size)
+                    format!("Header indicates shape of {expected_length:?}, but remaining file size is {bwt_disk_size:?}")
                 )
             );
         }
@@ -142,7 +142,7 @@ impl BWT for RleBWT {
             return Err(
                 std::io::Error::new(
                     std::io::ErrorKind::UnexpectedEof,
-                    format!("Only read {:?} of {:?} bytes of BWT body for file {:?}", read_count, bwt_disk_size, filename)
+                    format!("Only read {read_count:?} of {bwt_disk_size:?} bytes of BWT body for file {filename:?}")
                 )
             );
         }
