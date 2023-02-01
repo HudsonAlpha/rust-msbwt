@@ -1,6 +1,6 @@
 [package]
 name = "msbwt2"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["holtjma <jholt@hudsonalpha.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
