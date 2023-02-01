@@ -538,12 +538,12 @@ impl<'a> Iterator for RLEBPlusTreeRunIterator<'a> {
                     //check if this run matches the ongoing run
                     if pair_values.0 == self.next_sym {
                         //part of the same run, increment and loop back
-                        self.next_count += pair_values.1 as u64;
+                        self.next_count += pair_values.1;
                     } else {
                         //not part of the same run, store the new run values and return the current one
                         let ret_value = (self.next_sym, self.next_count);
                         self.next_sym = pair_values.0;
-                        self.next_count = pair_values.1 as u64;
+                        self.next_count = pair_values.1;
                         if ret_value.1 > 0 {
                             return Some(ret_value);
                         }

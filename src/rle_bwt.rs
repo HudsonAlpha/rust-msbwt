@@ -81,11 +81,11 @@ impl BWT for RleBWT {
     fn load_numpy_file(&mut self, filename: &str) -> std::io::Result<()> {
         //read the numpy header: http://docs.scipy.org/doc/numpy-1.10.1/neps/npy-format.html
         //get the initial file size
-        let file_metadata: fs::Metadata = fs::metadata(&filename)?;
+        let file_metadata: fs::Metadata = fs::metadata(filename)?;
         let full_file_size: u64 = file_metadata.len();
 
         //read the initial fixed header
-        let mut file = fs::File::open(&filename)?;
+        let mut file = fs::File::open(filename)?;
         let mut init_header: Vec<u8> = vec![0; 10];
         let read_count: usize = file.read(&mut init_header[..])?;
         if read_count != 10 {
@@ -105,7 +105,7 @@ impl BWT for RleBWT {
                 return Err(
                     std::io::Error::new(
                         e.kind(),
-                        format!("Could not read bytes 10-{:?} of header for file {:?}, root-error {:?}", skip_bytes, filename, e)
+                        format!("Could not read bytes 10-{skip_bytes:?} of header for file {filename:?}, root-error {e:?}")
                     )
                 );
             }
@@ -130,7 +130,7 @@ impl BWT for RleBWT {
             return Err(
                 std::io::Error::new(
                     std::io::ErrorKind::UnexpectedEof,
-                    format!("Header indicates shape of {:?}, but remaining file size is {:?}", expected_length, bwt_disk_size)
+                    format!("Header indicates shape of {expected_length:?}, but remaining file size is {bwt_disk_size:?}")
                 )
             );
         }
@@ -142,7 +142,7 @@ impl BWT for RleBWT {
             return Err(
                 std::io::Error::new(
                     std::io::ErrorKind::UnexpectedEof,
-                    format!("Only read {:?} of {:?} bytes of BWT body for file {:?}", read_count, bwt_disk_size, filename)
+                    format!("Only read {read_count:?} of {bwt_disk_size:?} bytes of BWT body for file {filename:?}")
                 )
             );
         }
@@ -239,7 +239,7 @@ impl BWT for RleBWT {
 
         let temp_offset: u64 = ret.l;
         if prev_char == sym {
-            ret.l += input_range.l - bwt_index as u64;
+            ret.l += input_range.l - bwt_index;
         }
 
         //now find the high value

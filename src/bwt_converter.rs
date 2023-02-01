@@ -50,7 +50,7 @@ pub fn convert_to_vec(bwt: impl Read) -> Vec<u8> {
             //debug stuff - symCount[translator[currSym]] += currCount;
             sym_count[translate[curr as usize] as usize] += count;
             while count > 0 {
-                let write_byte: u8 = translate[curr as usize] | ((count as u8 & COUNT_MASK) << LETTER_BITS) as u8;
+                let write_byte: u8 = translate[curr as usize] | ((count as u8 & COUNT_MASK) << LETTER_BITS);
                 ret.push(write_byte);
                 count >>= NUMBER_BITS;
             }
@@ -68,7 +68,7 @@ pub fn convert_to_vec(bwt: impl Read) -> Vec<u8> {
         //debug stuff - symCount[translator[currSym]] += currCount;
         sym_count[translate[curr as usize] as usize] += count;
         while count > 0 {
-            let write_byte: u8 = translate[curr as usize] | ((count as u8 & COUNT_MASK) << LETTER_BITS) as u8;
+            let write_byte: u8 = translate[curr as usize] | ((count as u8 & COUNT_MASK) << LETTER_BITS);
             ret.push(write_byte);
             count >>= NUMBER_BITS;
         }
@@ -161,7 +161,7 @@ pub fn save_bwt_runs_numpy(runs: impl Iterator<Item = (u8, u64)>, filename: &str
     for (symbol, count) in runs {
         let mut curr_count = count;
         while curr_count > 0 {
-            let write_byte: u8 = symbol | ((curr_count as u8 & COUNT_MASK) << LETTER_BITS) as u8;
+            let write_byte: u8 = symbol | ((curr_count as u8 & COUNT_MASK) << LETTER_BITS);
             buffer.write_all(&[write_byte])?;
             curr_count >>= NUMBER_BITS;
             num_bytes += 1;
